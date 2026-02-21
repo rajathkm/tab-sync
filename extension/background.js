@@ -77,15 +77,28 @@ async function connect() {
   const connectUrl = `${serverUrl}?channel=${encodeURIComponent(channel)}&device=${encodeURIComponent(config.device)}`;
 
   try {
-    ws = new WebSocket(connectUrl);
+    // Capture this specific instance so stale close events from a previous
+    // MV3 service worker lifecycle don't clobber the current connection.
+    //
+    // Root cause of the reconnect storm:
+    // 1. MV3 SW restarts → IIFE runs → connect() → ws = WS_new
+    // 2. Server sees same deviceId and closes WS_old (code 4002 "Replaced")
+    // 3. WS_old's onclose fires → ws = null  ← CLOBBERS WS_new
+    // 4. retryTimer fires → connect() → ws = WS_newer → repeat
+    //
+    // Fix: each connect() captures `thisWs`. onclose/onopen check
+    // `ws === thisWs` before touching the module-level `ws` variable.
+    const thisWs = new WebSocket(connectUrl);
+    ws = thisWs;
 
     // If auth token configured, send it via the first message (since WebSocket
     // constructor doesn't support custom headers in browsers)
-    ws.onopen = async () => {
+    thisWs.onopen = async () => {
+      if (ws !== thisWs) return; // Superseded by a newer connection — ignore
       retryCount = 0;
 
       if (config.authToken) {
-        ws.send(JSON.stringify({ type: 'auth', token: config.authToken }));
+        thisWs.send(JSON.stringify({ type: 'auth', token: config.authToken }));
       }
 
       updateConnectionStatus(profileLabel, primaryFailed ? 'backup' : 'connected');
@@ -94,7 +107,7 @@ async function connect() {
       await replayQueue();
     };
 
-    ws.onmessage = (event) => {
+    thisWs.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         handleIncomingEvent(data);
@@ -103,7 +116,8 @@ async function connect() {
       }
     };
 
-    ws.onclose = (event) => {
+    thisWs.onclose = (event) => {
+      if (ws !== thisWs) return; // Stale close from a previous lifecycle — do NOT clobber ws
       ws = null;
       updateConnectionStatus(profileLabel, 'offline');
       if (event.wasClean) {
@@ -117,7 +131,7 @@ async function connect() {
       }
     };
 
-    ws.onerror = (err) => {
+    thisWs.onerror = (err) => {
       console.error('[TabSync] WebSocket error:', err);
       // onclose will fire after this with wasClean=false
     };

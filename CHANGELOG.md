@@ -10,6 +10,18 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.6] — 2026-02-22
+
+### Fixed (critical — reconnect storm)
+
+- **Stale WS close events clobbering active connection** — the root cause of the infinite reconnect loop and "Offline" popup status.
+
+  MV3 service workers restart on every browser event (tab open, alarm, etc). Each restart calls `connect()`, setting `ws = WS_new`. The server then closes `WS_old` (code 4002 "Replaced"). `WS_old`'s `onclose` handler fired after the fact and executed `ws = null`, clobbering `WS_new`. The retry timer then created `WS_newer`, the server closed `WS_new`, and the cycle repeated every ~300–500ms.
+
+  Fix: `connect()` now captures each WebSocket in a local `thisWs` constant. The `onopen` and `onclose` handlers check `ws === thisWs` before touching the module-level `ws` variable. Stale close events from previous lifecycles silently return.
+
+---
+
 ## [1.1.5] — 2026-02-22
 
 ### Fixed (MiniMax adversarial review)
