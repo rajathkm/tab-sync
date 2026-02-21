@@ -2,7 +2,7 @@
 
 Real-time tab sync across browsers and devices. Open a tab on your Mac Mini, it appears on your MacBook. Navigate to an article, the other device follows. Close a tab, it closes everywhere.
 
-Works with **Chrome** and **Dia** browser on **macOS**. (Linux support coming.)
+Works with **Chrome** and **Dia** browser on **macOS**.
 
 ---
 
@@ -69,13 +69,13 @@ The wizard asks for:
 
 ## Platform support
 
-| Browser | macOS | Windows | Linux |
-|---------|-------|---------|-------|
-| Chrome | ✅ | ⏳ | ⏳ |
-| Dia | ✅ | ⏳ | ⏳ |
-| Brave / Arc / Edge | 🧪 probably works | — | — |
+| Browser | macOS |
+|---------|-------|
+| Chrome | ✅ |
+| Dia | ✅ |
+| Brave / Arc / Edge | 🧪 likely works |
 
-The server runs anywhere Node.js 18+ runs. The extension is Chrome MV3 and works in any Chromium-based browser.
+The server runs anywhere Node.js 18+ runs. The extension is Chrome MV3 and should work in any Chromium-based browser.
 
 ---
 
