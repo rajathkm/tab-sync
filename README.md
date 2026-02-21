@@ -98,21 +98,37 @@ Open-sync (auto-open tabs on other device) can be toggled per profile in the pop
 
 ## Networking
 
-### Same local network (simplest)
+**No Tailscale required.** Use whichever option fits your setup:
 
-The server and all devices are on the same Wi-Fi. Use the local IP printed by `install.sh`. No extra setup.
+### Option A — Same local network (no extra tools needed)
 
-### Different networks (Tailscale recommended)
+All your devices are on the same Wi-Fi or ethernet (home, office). `install.sh` detects and prints your local IP automatically. Use that IP in the extension wizard on every device.
 
-Install [Tailscale](https://tailscale.com) on all devices. Use your Tailscale IP (`100.x.x.x`) as the server URL. Tailscale handles NAT traversal and keeps connections encrypted.
+**This works as long as all your devices stay on the same network.** If your laptop leaves the house, it loses the connection until it comes back.
 
-### VPS / hosted server
+### Option B — Different networks (Tailscale, free)
 
-Run `server.js` on any Linux VPS. Use the public IP or domain as the server URL. Set `AUTH_TOKEN` env var and put the same token in the extension setup to prevent unauthorized connections.
+Your server is at home but your laptop moves around. [Tailscale](https://tailscale.com) creates a private network between your devices regardless of where they physically are — no port forwarding, no firewall changes.
+
+Free tier covers up to 3 devices, which is enough for most setups. `install.sh` automatically prints your Tailscale IP if it detects Tailscale is installed.
+
+1. Install Tailscale on every device: [tailscale.com/download](https://tailscale.com/download)
+2. Sign in with the same account on all of them
+3. Use the `100.x.x.x` Tailscale IP from `install.sh` as your server URL
+
+### Option C — VPS / cloud server (always-on, accessible anywhere)
+
+Run `server.js` on a cheap VPS (Hetzner, DigitalOcean, etc. — ~$5/month). Use its public IP or domain as the server URL. Set an `AUTH_TOKEN` so only your devices can connect.
 
 ```bash
 AUTH_TOKEN=your-secret node server.js --port 7777
 ```
+
+This is the only option where you don't need to keep a personal machine on 24/7.
+
+---
+
+**TL;DR:** Start with Option A if your devices share a network. Add Tailscale (Option B) if your laptop moves. Rent a VPS (Option C) if you want zero dependency on any personal machine being online.
 
 ---
 
