@@ -10,6 +10,23 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.12] — 2026-02-21
+
+### Added
+
+- **In-tab navigation sync (`tab_navigated` event)** — navigating within a synced tab (link clicks, address bar changes, redirects, Cmd+L) now propagates to the other device in real time.
+
+  **Root cause (3 reasons it wasn't working):**
+  1. `onUpdated` explicitly skipped real→real URL transitions (`if (!isInternalUrl(prevUrl)) return`). v1.1.11 was intentionally "tab opens only."
+  2. No `tab_navigated` event type existed — the receiver only handled `tab_opened` (new tab create) and `tab_closed`. In-tab events had nowhere to land.
+  3. No tab correlation mechanism — tabs don't share IDs across browsers. Fix matches by URL: receiver finds the tab showing `oldUrl` and navigates it to `newUrl`.
+
+  **New `tab_navigated` event**: `{ type: 'tab_navigated', oldUrl, newUrl }`. Sender emits when `onUpdated` fires with both `prevUrl` and `url` being real (non-internal) URLs that differ. Receiver's `handleTabNavigated()` queries all tabs, finds one matching `oldUrl`, calls `chrome.tabs.update(tabId, { url: newUrl })`, and flashes the badge.
+
+- **Echo suppression for navigation** — `pendingNavUrls` Set tracks `${tabId}:${url}` pairs triggered by `handleTabNavigated`. When `onUpdated` fires as a result of a received `tab_navigated`, it's suppressed so the navigation doesn't echo back to the sender.
+
+---
+
 ## [1.1.11] — 2026-02-21
 
 ### Fixed (root cause of Cmd+T sync failure)

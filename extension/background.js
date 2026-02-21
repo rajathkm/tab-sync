@@ -15,6 +15,12 @@ const MAX_BACKOFF = 60000;
 const QUEUE_MAX = 50;
 const EVENT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+// Echo suppression for tab_navigated: tracks `${tabId}:${newUrl}` combos that
+// WE triggered via handleTabNavigated so onUpdated doesn't re-emit them back.
+// In-memory only — but chrome.tabs.update + the resulting onUpdated fire in the
+// same SW lifecycle (WS message keeps SW awake), so this survives reliably.
+const pendingNavUrls = new Set();
+
 // Sequence tracking for deduplication only.
 // We no longer buffer out-of-order events: with a stable TCP WebSocket,
 // reordering is essentially impossible. The old "buffer + gap timer" approach
@@ -216,6 +222,9 @@ async function executeEvent(event) {
     case 'tab_opened':
       await handleTabOpened(event);
       break;
+    case 'tab_navigated':
+      await handleTabNavigated(event);
+      break;
   }
 }
 
@@ -272,6 +281,47 @@ async function handleTabOpened(event) {
   } catch (e) {
     console.error('[Relay] failed to open tab:', e);
   }
+}
+
+async function handleTabNavigated(event) {
+  if (!event.oldUrl || !event.newUrl) return;
+
+  // Respect the same open-sync toggle as handleTabOpened.
+  const config = await getConfig();
+  const profileDir = config?.activeProfileDir;
+  const profileLabel = config?.profiles?.[profileDir];
+  if (!profileLabel) {
+    console.warn('[Relay] handleTabNavigated: could not resolve profileLabel');
+    return;
+  }
+  const openSyncOn = await isOpenSyncEnabled(profileLabel);
+  if (!openSyncOn) {
+    console.log('[Relay] handleTabNavigated: open-sync disabled for profile:', profileLabel);
+    return;
+  }
+
+  // Find the tab currently showing oldUrl.
+  const normalizedOld = normalizeUrl(event.oldUrl);
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    if (normalizeUrl(tab.url) === normalizedOld) {
+      // Mark this (tabId, newUrl) pair so onUpdated doesn't echo it back.
+      const key = `${tab.id}:${event.newUrl}`;
+      pendingNavUrls.add(key);
+      setTimeout(() => pendingNavUrls.delete(key), 5000); // safety cleanup
+
+      try {
+        await chrome.tabs.update(tab.id, { url: event.newUrl });
+        console.log('[Relay] handleTabNavigated: navigated tab', tab.id, 'from', event.oldUrl, '→', event.newUrl);
+        flashBadge();
+      } catch (e) {
+        console.error('[Relay] handleTabNavigated: failed:', e);
+        pendingNavUrls.delete(key);
+      }
+      return; // Navigate the first matching tab only.
+    }
+  }
+  console.log('[Relay] handleTabNavigated: no tab found with URL:', event.oldUrl);
 }
 
 // Flash the extension badge for 3s to confirm a synced tab was received.
@@ -428,28 +478,35 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
   if (isInternalUrl(url)) return; // navigated to an internal page — nothing to sync
 
-  // Emit tab_opened only for the internal→real transition.
-  //
   // prevUrl meanings:
   //   undefined  — existing tab whose URL we didn't know (SW restarted AFTER
   //                initTabCache but BEFORE this tab fired onCreated, very rare).
-  //                Treat conservatively: skip, to avoid spamming tab_opened for
-  //                every in-page navigation on tabs we can't classify.
-  //   '' or      — tab was blank or at a browser-internal page (new tab, extension
-  //   internal     page, etc.).  This IS a new-tab navigation → emit.
-  //   real URL   — tab was already showing a real page: this is an in-tab link
-  //                click or redirect → do NOT emit (we only sync tab opens, not
-  //                every navigation within a tab).
+  //                Treat conservatively: skip.
+  //   '' or      — tab was blank or at a browser-internal page → new-tab navigation.
+  //   internal
+  //   real URL   — tab was already showing a real page → in-tab navigation.
   if (prevUrl === undefined) return;
-  if (!isInternalUrl(prevUrl)) return; // in-tab navigation from a real URL
 
-  // prevUrl was internal/blank → user navigated a new tab to a real URL
   const config = await getConfig();
   const profileDir = config?.activeProfileDir;
   const profileLabel = config?.profiles?.[profileDir];
-  if (profileLabel && await isOpenSyncEnabled(profileLabel)) {
+  if (!profileLabel || !(await isOpenSyncEnabled(profileLabel))) return;
+
+  if (isInternalUrl(prevUrl)) {
+    // internal→real: blank new tab the user navigated to a real URL.
     console.log('[Relay] onUpdated: new-tab navigation, sending tab_opened:', url);
     await sendEvent({ type: 'tab_opened', url });
+  } else if (url !== prevUrl) {
+    // real→real: in-tab navigation (link click, address bar, redirect, Cmd+L).
+    // Echo suppression: if WE triggered this update via handleTabNavigated, skip it.
+    const key = `${tabId}:${url}`;
+    if (pendingNavUrls.has(key)) {
+      pendingNavUrls.delete(key);
+      console.log('[Relay] onUpdated: suppressed echo nav:', url);
+      return;
+    }
+    console.log('[Relay] onUpdated: in-tab navigation, sending tab_navigated:', prevUrl, '→', url);
+    await sendEvent({ type: 'tab_navigated', oldUrl: prevUrl, newUrl: url });
   }
 });
 
