@@ -290,6 +290,24 @@ httpServer.listen(PORT, () => {
   }
 });
 
+// --- Heartbeat — keeps MV3 service workers alive ---
+// Chrome MV3 SWs terminate after ~30s of inactivity. An open WebSocket
+// connection alone does NOT prevent this. Sending a lightweight JSON message
+// every 25s forces the browser's onmessage handler to fire, which the Chrome
+// SW scheduler treats as activity and resets the idle timer.
+const HEARTBEAT_INTERVAL_MS = 25_000;
+
+setInterval(() => {
+  const hb = JSON.stringify({ type: 'heartbeat', ts: Date.now() });
+  for (const [channel, devMap] of channels) {
+    for (const [device, clientWs] of devMap) {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(hb);
+      }
+    }
+  }
+}, HEARTBEAT_INTERVAL_MS);
+
 // Graceful shutdown
 process.on('SIGTERM', () => {
   log('SIGTERM received, shutting down');
