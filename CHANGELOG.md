@@ -10,6 +10,16 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.10] — 2026-02-21
+
+### Fixed
+
+- **pendingSyncUrls map silently killed live sync sending** — v1.1.9 added a `pendingSyncUrls` Map (keyed by normalised URL) to suppress echo `tab_opened` events emitted by `onCreated`/`onUpdated` when `handleTabOpened` created a tab. The map was designed to only hold URLs currently being opened by the sync path, but it caused live sync events from the *user's own* tab opens to be silently dropped in edge cases (e.g. after `push-all-tabs` populated the map, or when Dia's `chrome.tabs.create` fired `onCreated` with an empty URL, leaving the map entry unconsumed). Result: post-v1.1.9 reload, both devices showed zero live `tab_opened` events in the server log while `push-all-tabs` (which bypasses the listener path entirely) still worked. **Fix**: removed `pendingSyncUrls` entirely. Echoes are harmless — the originating device always suppresses them via the duplicate-URL check in `handleTabOpened`.
+
+- **`isInternal` missing Dia-specific URL schemes** — added `dia://` and `dia-extension://` to the internal URL scheme list in `onCreated`. Without this, Dia's custom new-tab URL would have been treated as a real URL, incorrectly emitting `tab_opened` for the new-tab page and skipping the `newTabIds` path that detects subsequent address-bar navigations.
+
+---
+
 ## [1.1.9] — 2026-02-21
 
 ### Fixed

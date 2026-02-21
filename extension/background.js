@@ -264,24 +264,13 @@ async function handleTabOpened(event) {
     }
   }
 
-  // Mark URL as pending so onCreated/onUpdated don't echo tab_opened back.
-  // Without this, the sync-created tab fires onCreated → sendEvent → echo back to
-  // the originating device. The echo is harmless (duplicate-suppressed there) but
-  // it creates unnecessary server traffic AND couples the synced tab's lifetime to
-  // the echo chain, making it look like syncing isn't working during quick tests.
-  pendingSyncUrls.set(normalized, (pendingSyncUrls.get(normalized) || 0) + 1);
-
   try {
     await chrome.tabs.create({ url: event.url, active: false });
     console.log('[Relay] opened synced tab:', event.url);
-    // Brief badge flash — shows the user a tab was received even though it opened in background
+    // Brief badge flash — visible confirmation even though synced tab opens in background
     flashBadge();
   } catch (e) {
     console.error('[Relay] failed to open tab:', e);
-    // Roll back pending count so onCreated guard doesn't permanently block this URL
-    const n = (pendingSyncUrls.get(normalized) || 1) - 1;
-    if (n <= 0) pendingSyncUrls.delete(normalized);
-    else pendingSyncUrls.set(normalized, n);
   }
 }
 
@@ -381,7 +370,9 @@ chrome.tabs.onCreated.addListener(async (tab) => {
   const isInternal = !url ||
     url.startsWith('chrome://') ||
     url.startsWith('chrome-extension://') ||
-    url.startsWith('about:');
+    url.startsWith('about:') ||
+    url.startsWith('dia://') ||
+    url.startsWith('dia-extension://');
 
   if (isInternal) {
     // No real URL yet — mark as "new" so onUpdated emits tab_opened when URL arrives
@@ -392,18 +383,6 @@ chrome.tabs.onCreated.addListener(async (tab) => {
   // Tab was created with a real URL already (e.g. cmd+click, JS window.open) — emit now.
   // Don't add to newTabIds; onUpdated will also fire but won't find tabId in the set.
   tabUrlCache.set(tab.id, url);
-
-  // Suppress echo for sync-created tabs: handleTabOpened registered this URL in
-  // pendingSyncUrls before calling chrome.tabs.create. Consume the reservation and
-  // return without emitting tab_opened — the tab was already opened by the remote device.
-  const normalized = normalizeUrl(url);
-  if (pendingSyncUrls.has(normalized)) {
-    const n = pendingSyncUrls.get(normalized) - 1;
-    if (n <= 0) pendingSyncUrls.delete(normalized);
-    else pendingSyncUrls.set(normalized, n);
-    console.log('[Relay] onCreated: suppressed echo for sync-created tab:', url);
-    return;
-  }
 
   const config = await getConfig();
   const profileDir = config?.activeProfileDir;
@@ -432,17 +411,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (newTabIds.has(tabId)) {
     newTabIds.delete(tabId);
 
-    // Suppress echo for sync-created tabs that started blank (e.g. Dia may fire onCreated
-    // with an empty URL even when chrome.tabs.create passes a URL — the real URL arrives here).
-    const normalized = normalizeUrl(url);
-    if (pendingSyncUrls.has(normalized)) {
-      const n = pendingSyncUrls.get(normalized) - 1;
-      if (n <= 0) pendingSyncUrls.delete(normalized);
-      else pendingSyncUrls.set(normalized, n);
-      console.log('[Relay] onUpdated: suppressed echo for sync-created tab:', url);
-      return;
-    }
-
     const config = await getConfig();
     const profileDir = config?.activeProfileDir;
     const profileLabel = config?.profiles?.[profileDir];
@@ -461,14 +429,10 @@ const tabUrlCache = new Map();
 // making oldUrl truthy and causing the open event to be silently dropped.
 const newTabIds = new Set();
 
-// pendingSyncUrls — tracks URLs currently being opened by handleTabOpened.
-// Used to suppress the echo tab_opened that onCreated/onUpdated would otherwise
-// emit for sync-created tabs.  Without this, every synced tab fires an echo back
-// to the originating device; that echo is harmless (duplicate-suppressed) but it
-// also causes the close cascade: user closes original tab → B closes its copy →
-// B's onRemoved echoes tab_closed → A tries to close a tab it already closed.
-// Map<normalizedUrl, count> — count handles rare concurrent same-URL syncs.
-const pendingSyncUrls = new Map();
+// (pendingSyncUrls removed — echo suppression via URL map caused live sync events to
+// be silently dropped when onCreated/onUpdated fired before the map entry could be
+// consumed. Echoes are harmless: the originating device suppresses them via duplicate
+// URL check in handleTabOpened.)
 
 // Initialize cache with all current tabs
 async function initTabCache() {
