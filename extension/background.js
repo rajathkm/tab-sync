@@ -276,10 +276,13 @@ async function handleTabOpened(event) {
     const config = await getConfig();
     const profileDir = config?.activeProfileDir;
     const profileLabel = config?.profiles?.[profileDir];
-    if (profileLabel) {
-      const openSyncOn = await isOpenSyncEnabled(profileLabel);
-      if (!openSyncOn) return;
-    }
+
+    // If we can't resolve the profile, err on the side of caution and skip.
+    // Previously this fell through and opened the tab regardless of toggle.
+    if (!profileLabel) return;
+
+    const openSyncOn = await isOpenSyncEnabled(profileLabel);
+    if (!openSyncOn) return;
   }
 
   // Duplicate suppression — check if URL already open (ignore fragments)
@@ -378,17 +381,22 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
 });
 
 chrome.tabs.onCreated.addListener(async (tab) => {
-  const url = tab.url || '';
-  const isInternal = url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:') || url === '';
+  // tab.url can be undefined, null, or empty string depending on Chrome version and tab type.
+  // Coerce to a safe string immediately to avoid null-reference errors.
+  const url = (typeof tab.url === 'string' ? tab.url : '').trim();
+  const isInternal = !url ||
+    url.startsWith('chrome://') ||
+    url.startsWith('chrome-extension://') ||
+    url.startsWith('about:');
 
   if (isInternal) {
-    // No real URL yet — mark as new so onUpdated can emit tab_opened when URL arrives
+    // No real URL yet — mark as "new" so onUpdated emits tab_opened when URL arrives
     newTabIds.add(tab.id);
-    if (url) tabUrlCache.set(tab.id, url);
     return;
   }
 
-  // Tab was created with a real URL (e.g. cmd+click, JS window.open) — emit now
+  // Tab was created with a real URL already (e.g. cmd+click, JS window.open) — emit now.
+  // Don't add to newTabIds; onUpdated will also fire but won't find tabId in the set.
   tabUrlCache.set(tab.id, url);
   const config = await getConfig();
   const profileDir = config?.activeProfileDir;
@@ -446,30 +454,30 @@ async function initTabCache() {
 async function setupContextMenu() {
   const config = await getConfig();
   const deviceName = config?.device || 'other device';
+  const title = `Push tab to ${deviceName}`;
 
-  // Remove existing menu items before creating new ones.
-  // Must await removeAll to avoid the race condition where both the
-  // onInstalled handler and the startup IIFE call setupContextMenu()
-  // concurrently — without awaiting removeAll, two create() calls land
-  // before either removal completes, producing "duplicate id" errors.
-  await chrome.contextMenus.removeAll();
-
-  chrome.contextMenus.create(
-    {
-      id: 'push-tab',
-      title: `Push tab to ${deviceName}`,
-      contexts: ['page']
-    },
-    () => {
-      // Suppress harmless "duplicate id" errors — can fire on rapid SW restart
-      if (chrome.runtime.lastError) {
-        const msg = chrome.runtime.lastError.message || '';
-        if (!msg.includes('duplicate')) {
-          console.error('[TabSync] Context menu create error:', msg);
+  // Use update → create fallback to eliminate the removeAll() race.
+  // removeAll() + create() are two separate async operations: if both
+  // onInstalled and the startup IIFE call setupContextMenu() concurrently,
+  // both removeAll() calls can resolve before either create() fires,
+  // producing "Cannot create item with duplicate id push-tab".
+  //
+  // update() is atomic: if the item already exists, it updates in-place
+  // (no duplicate possible). If it doesn't exist, we catch the error and
+  // create it. No removeAll needed, no race window.
+  chrome.contextMenus.update('push-tab', { title }, () => {
+    if (chrome.runtime.lastError) {
+      // Item doesn't exist yet (fresh install or cleared state) — create it
+      chrome.contextMenus.create(
+        { id: 'push-tab', title, contexts: ['page'] },
+        () => {
+          // Suppress any remaining errors (e.g., rapid concurrent create from
+          // onInstalled + IIFE in the same event loop tick)
+          if (chrome.runtime.lastError) { /* intentionally checked */ }
         }
-      }
+      );
     }
-  );
+  });
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {

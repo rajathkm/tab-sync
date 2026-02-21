@@ -10,6 +10,19 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.5] — 2026-02-22
+
+### Fixed (MiniMax adversarial review)
+
+- **Context menu race — replaced `removeAll + create` with `update → create` fallback**
+  The previous approach (removeAll + create) had a window where both `onInstalled` and the startup IIFE could each call `removeAll()` and then `create()` before the other's removal completed, producing "Cannot create item with duplicate id". A module-level boolean guard was proposed but rejected: MV3 service worker resets all in-memory state on every restart, so the guard is always `false` when the race matters. New approach: `update('push-tab', ...)` — if the item exists, it updates in-place (no duplicate); if not, the error callback creates it. Any remaining concurrent `create()` race is silently handled by checking `lastError`.
+
+- **`handleTabOpened` fall-through bug** — if `config.activeProfileDir` was null/stale, the profile label lookup returned `undefined`, the toggle check was silently skipped, and the tab opened regardless of the user's open-sync setting. Now returns early when profile can't be resolved.
+
+- **Null-safe `tab.url` in `onCreated`** — `tab.url` can be `undefined`, `null`, or empty depending on Chrome version and tab type. Coerced to a safe string with type check before any `.startsWith()` call.
+
+---
+
 ## [1.1.4] — 2026-02-22
 
 ### Changed
