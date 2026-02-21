@@ -66,7 +66,11 @@ async function setOpenSyncToggle(profileLabel, enabled) {
 
 async function isOpenSyncEnabled(profileLabel) {
   const toggles = await getOpenSyncToggles();
-  return toggles[profileLabel] === true; // disabled by default
+  // Opt-out default: enabled unless explicitly set to false.
+  // Both sending and receiving check this toggle, so both devices need it on.
+  // Defaulting to true means a freshly-installed extension works immediately
+  // without requiring the user to manually enable it on every device.
+  return toggles[profileLabel] !== false;
 }
 
 // Normalize URLs for comparison — strip fragment

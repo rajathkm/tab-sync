@@ -10,6 +10,14 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.8] — 2026-02-22
+
+### Fixed
+
+- **Auto-open defaulted to off on every device** — `isOpenSyncEnabled` used `=== true` (opt-in), meaning a freshly set-up device would ignore all received `tab_opened` events and never emit its own. Both the sender and receiver check this toggle, so if *either* device had it off, the whole auto-open chain was silently broken. Mac Mini was just installed with a fresh config — toggle was `undefined`, evaluated to `false`. Changed to `!== false` (opt-out): enabled unless explicitly disabled. Popup display updated to match.
+
+---
+
 ## [1.1.7] — 2026-02-22
 
 ### Fixed

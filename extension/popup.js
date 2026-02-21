@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const connStatus = status?.connectionStatus?.[label];
     const statusText = connStatus?.status || 'offline';
     const enabled = toggles[label] !== false;
-    const openSyncOn = openSyncToggles[label] === true;
+    const openSyncOn = openSyncToggles[label] !== false; // mirrors isOpenSyncEnabled default
 
     const card = document.createElement('div');
     card.className = 'profile-card';
