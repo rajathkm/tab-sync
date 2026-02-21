@@ -103,15 +103,23 @@ async function connect() {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       ws = null;
       updateConnectionStatus(profileLabel, 'offline');
-      scheduleReconnect();
+      if (event.wasClean) {
+        // Clean close = service worker suspended or server intentionally closed.
+        // Don't count against primary retry budget — just reconnect quickly.
+        if (retryTimer) clearTimeout(retryTimer);
+        retryTimer = setTimeout(() => connect(), 500);
+      } else {
+        // Abnormal close = network error, server unreachable — counts as failure.
+        scheduleReconnect();
+      }
     };
 
     ws.onerror = (err) => {
       console.error('[TabSync] WebSocket error:', err);
-      // onclose will fire after this
+      // onclose will fire after this with wasClean=false
     };
   } catch (e) {
     console.error('[TabSync] Connect failed:', e);
@@ -574,6 +582,20 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
   await initTabCache();
   await setupContextMenu();
+});
+
+// --- Keepalive alarm (prevents service worker from sleeping mid-session) ---
+// Chrome MV3 minimum alarm interval is 1 minute. This wakes the SW and reconnects if dropped.
+chrome.alarms.create('tabsync-keepalive', { periodInMinutes: 1 });
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== 'tabsync-keepalive') return;
+  const setupDone = await isSetupComplete();
+  if (!setupDone) return;
+  // If WebSocket is not open, reconnect
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!retryTimer) connect(); // Only if not already retrying
+  }
 });
 
 // Service worker startup

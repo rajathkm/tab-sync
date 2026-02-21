@@ -10,6 +10,16 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.1] — 2026-02-21
+
+### Fixed
+- Service worker clean closes (sleep) no longer count toward primary server failover threshold
+- Added `chrome.alarms` keepalive (1-min interval) to reconnect WebSocket after service worker wakes
+- Added `alarms` permission to manifest
+- Eliminates spurious `ERR_CONNECTION_REFUSED` on port 7778 caused by false primary failures
+
+---
+
 ## [1.1.0] — 2026-02-21
 
 ### Added
