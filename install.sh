@@ -47,6 +47,11 @@ else
   error "Node.js 18+ required. Found $(node --version). Install a newer version from https://nodejs.org"
 fi
 
+if ! command -v git &>/dev/null; then
+  error "git not found. Install Xcode Command Line Tools: xcode-select --install"
+fi
+info "git $(git --version | awk '{print $3}')"
+
 # ── Clone or update repo ───────────────────────────────────────────────────────
 header "Setting up server files..."
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -94,7 +99,7 @@ if [ -n "$AUTH_TOKEN" ]; then
   info "Using AUTH_TOKEN from environment"
   AUTH_TOKEN_VALUE="$AUTH_TOKEN"
 else
-  read -r -p "  Set an auth token? (recommended for security) [y/N] " yn
+  read -r -p "  Set an auth token? (recommended for security) [y/N] " yn < /dev/tty
   if [[ "$yn" =~ ^[Yy]$ ]]; then
     AUTH_TOKEN_VALUE=$(openssl rand -hex 24 2>/dev/null || cat /dev/urandom | LC_ALL=C tr -dc 'a-f0-9' | head -c 48)
     echo
@@ -158,6 +163,8 @@ PLIST
 # Unload old instance if running
 launchctl unload "$PLIST_PATH" 2>/dev/null || true
 launchctl load "$PLIST_PATH"
+chmod 600 "$PLIST_PATH"
+info "LaunchAgent permissions secured (600)"
 info "LaunchAgent loaded — server starts automatically on login"
 
 # ── Health check ──────────────────────────────────────────────────────────────

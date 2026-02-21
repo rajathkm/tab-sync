@@ -40,6 +40,11 @@ The script will:
 
 **Copy that URL.** You'll need it on every device in Step 3.
 
+> **Tip:** To set an auth token non-interactively (e.g. on a headless server):
+> ```bash
+> AUTH_TOKEN=your-secret bash <(curl -fsSL https://raw.githubusercontent.com/rajathkm/tab-sync/main/install.sh)
+> ```
+
 ### Step 2 — Install the extension on every device and browser
 
 1. [Download the latest release](https://github.com/rajathkm/tab-sync/releases/latest) → `relay-extension.zip`
@@ -140,13 +145,14 @@ cd tab-sync/server
 npm install
 node server.js --port 7777
 # Server running on ws://0.0.0.0:7777
+# Change 7777 to any available port you prefer
 ```
 
-To run as a background service on macOS, edit `infra/com.clawd.tabsync.primary.plist` (replace `YOURUSERNAME`), then:
+To run as a background service on macOS, edit `infra/com.relay.tabsync.primary.plist` (replace `YOURUSERNAME`), then:
 
 ```bash
-cp infra/com.clawd.tabsync.primary.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.clawd.tabsync.primary.plist
+cp infra/com.relay.tabsync.primary.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.relay.tabsync.primary.plist
 ```
 
 ---
@@ -161,6 +167,21 @@ launchctl load ~/Library/LaunchAgents/com.clawd.tabsync.primary.plist
 | Extension setup wizard doesn't appear | Go to `chrome://extensions` → Relay → click the extension icon |
 | Tabs sync but echo back | Check that both devices are running the same version |
 | Can't reach server from another device | Confirm firewall allows port 7777; use Tailscale for cross-network |
+
+---
+
+## Uninstall
+
+```bash
+# Stop and remove the LaunchAgent
+launchctl unload ~/Library/LaunchAgents/com.relay.tabsync.plist
+rm ~/Library/LaunchAgents/com.relay.tabsync.plist
+
+# Remove server files
+rm -rf ~/relay-server
+
+# Remove extension: chrome://extensions → Relay → Remove
+```
 
 ---
 

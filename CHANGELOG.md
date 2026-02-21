@@ -112,7 +112,7 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ## [1.1.5] — 2026-02-22
 
-### Fixed (MiniMax adversarial review)
+### Fixed
 
 - **Context menu race — replaced `removeAll + create` with `update → create` fallback**
   The previous approach (removeAll + create) had a window where both `onInstalled` and the startup IIFE could each call `removeAll()` and then `create()` before the other's removal completed, producing "Cannot create item with duplicate id". A module-level boolean guard was proposed but rejected: MV3 service worker resets all in-memory state on every restart, so the guard is always `false` when the race matters. New approach: `update('push-tab', ...)` — if the item exists, it updates in-place (no duplicate); if not, the error callback creates it. Any remaining concurrent `create()` race is silently handled by checking `lastError`.
