@@ -1,0 +1,14 @@
+{
+  "name": "tabsync-server",
+  "version": "1.0.0",
+  "description": "Cross-device browser tab sync server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:primary": "node server.js --port 7777",
+    "start:secondary": "node server.js --port 7778 --secondary"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

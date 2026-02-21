@@ -1,0 +1,12 @@
+{
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["tag:tabsync"],
+      "dst": ["tag:tabsync:7777", "tag:tabsync:7778"]
+    }
+  ],
+  "tagOwners": {
+    "tag:tabsync": ["autogroup:admin"]
+  }
+}

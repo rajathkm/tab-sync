@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tab Sync — Setup</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+
+    .wizard {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    /* === Step Indicator === */
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 32px;
+      padding: 0 40px;
+    }
+
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: transparent;
+      border: 2px solid var(--gray-light);
+      flex-shrink: 0;
+      transition: all var(--transition);
+      position: relative;
+      z-index: 1;
+    }
+
+    .step-dot.active {
+      border-color: var(--amber);
+      background: var(--amber);
+      box-shadow: 0 0 0 4px rgba(232, 160, 32, 0.2);
+    }
+
+    .step-dot.done {
+      border-color: var(--amber);
+      background: var(--amber);
+    }
+
+    .step-line {
+      flex: 1;
+      height: 2px;
+      background: var(--gray-light);
+      transition: background var(--transition);
+    }
+
+    .step-line.done {
+      background: var(--amber);
+    }
+
+    /* === Step Container === */
+    .step {
+      display: none;
+    }
+
+    .step.active {
+      display: block;
+      animation: fadeSlideIn 300ms ease-out;
+    }
+
+    @keyframes fadeSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* === Step Card === */
+    .step-card {
+      background: var(--white);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+      padding: 32px;
+    }
+
+    /* === Step Icon === */
+    .step-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, rgba(232, 160, 32, 0.1), rgba(244, 200, 66, 0.1));
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--amber);
+    }
+
+    .step-title {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--dark);
+      text-align: center;
+      margin-bottom: 6px;
+    }
+
+    .step-desc {
+      font-size: 14px;
+      color: var(--gray);
+      text-align: center;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    /* === Form Labels === */
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--dark-muted);
+      margin-bottom: 6px;
+      margin-top: 20px;
+    }
+
+    .form-label:first-of-type {
+      margin-top: 0;
+    }
+
+    .form-note {
+      font-size: 12px;
+      color: var(--gray);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    /* === Browser Detect Box === */
+    .browser-detect {
+      background: linear-gradient(135deg, rgba(232, 160, 32, 0.08), rgba(244, 200, 66, 0.05));
+      border: 1px solid rgba(232, 160, 32, 0.2);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .browser-detect strong {
+      color: var(--amber);
+      font-weight: 600;
+    }
+
+    .browser-detect svg {
+      color: var(--amber);
+      flex-shrink: 0;
+    }
+
+    /* === Select === */
+    .select {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--cream-dark);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: var(--dark);
+      font-family: var(--font-body);
+      font-size: 14px;
+      outline: none;
+      transition: all var(--transition);
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238B7D70' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+    }
+
+    .select:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(232, 160, 32, 0.15);
+    }
+
+    /* === Profile Rows === */
+    .profile-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--cream-dark);
+    }
+
+    .profile-row:last-child {
+      border-bottom: none;
+    }
+
+    .profile-dir {
+      font-size: 12px;
+      color: var(--gray);
+      font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+      flex-shrink: 0;
+      min-width: 80px;
+    }
+
+    .profile-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--cream-dark);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: var(--dark);
+      font-family: var(--font-body);
+      font-size: 13px;
+      outline: none;
+      transition: all var(--transition);
+    }
+
+    .profile-input::placeholder {
+      color: var(--gray-light);
+    }
+
+    .profile-input:focus {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(232, 160, 32, 0.15);
+    }
+
+    .profile-input:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .skip-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: var(--gray);
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .skip-label input[type="checkbox"] {
+      accent-color: var(--amber);
+      cursor: pointer;
+    }
+
+    /* === Manual Add Area === */
+    .manual-add {
+      margin-top: 16px;
+      padding: 16px;
+      border: 2px dashed var(--cream-dark);
+      border-radius: var(--radius-sm);
+    }
+
+    .manual-add-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--gray);
+      margin-bottom: 8px;
+    }
+
+    .manual-add-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .manual-add-row .input {
+      flex: 1;
+    }
+
+    .manual-add-row .btn-add {
+      padding: 10px 16px;
+      background: var(--cream-dark);
+      border: 1px solid var(--gray-light);
+      border-radius: var(--radius-sm);
+      color: var(--dark-muted);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all var(--transition);
+    }
+
+    .manual-add-row .btn-add:hover {
+      border-color: var(--amber);
+      color: var(--dark);
+    }
+
+    /* === Info Callout === */
+    .info-callout {
+      border-left: 3px solid var(--amber);
+      background: rgba(232, 160, 32, 0.06);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 12px 16px;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--dark-muted);
+      line-height: 1.5;
+    }
+
+    /* === Auth Selection Cards === */
+    .auth-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .auth-card {
+      position: relative;
+      padding: 16px;
+      background: var(--cream-dark);
+      border: 2px solid transparent;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+
+    .auth-card:hover {
+      border-color: var(--gray-light);
+    }
+
+    .auth-card.selected {
+      border-color: var(--amber);
+      background: rgba(232, 160, 32, 0.06);
+    }
+
+    .auth-card input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .auth-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .auth-card-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--gray-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all var(--transition);
+    }
+
+    .auth-card.selected .auth-card-dot {
+      border-color: var(--amber);
+    }
+
+    .auth-card.selected .auth-card-dot::after {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--amber);
+    }
+
+    .auth-card-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--dark);
+    }
+
+    .auth-card-desc {
+      font-size: 12px;
+      color: var(--gray);
+      margin-left: 26px;
+    }
+
+    /* === ACL Snippet === */
+    .acl-snippet {
+      background: var(--dark);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+      font-size: 12px;
+      white-space: pre;
+      overflow-x: auto;
+      margin-top: 12px;
+      color: var(--cream-dark);
+      line-height: 1.6;
+    }
+
+    .acl-snippet .key {
+      color: var(--amber-light);
+    }
+
+    .acl-snippet .string {
+      color: #A8D8A8;
+    }
+
+    /* === Token Display === */
+    .token-display {
+      background: var(--dark);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+      font-size: 12px;
+      margin-top: 12px;
+      word-break: break-all;
+      color: var(--amber-light);
+      line-height: 1.5;
+    }
+
+    /* === Auth detail panels === */
+    .auth-detail {
+      display: none;
+      margin-top: 16px;
+    }
+
+    .auth-detail.visible {
+      display: block;
+      animation: fadeSlideIn 200ms ease-out;
+    }
+
+    /* === Navigation === */
+    .btn-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 28px;
+    }
+
+    /* === Optional badge === */
+    .optional-badge {
+      display: inline-block;
+      font-size: 11px;
+      color: var(--gray);
+      background: var(--cream-dark);
+      padding: 2px 8px;
+      border-radius: 100px;
+      margin-left: 8px;
+      font-weight: 400;
+      vertical-align: middle;
+    }
+
+    /* === Success Screen === */
+    .success-screen {
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .success-icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, var(--amber), var(--amber-light));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--white);
+      animation: scaleIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .success-screen h1 {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .success-screen .step-desc {
+      margin-bottom: 0;
+    }
+
+    .success-note {
+      font-size: 12px;
+      color: var(--gray);
+      margin-top: 20px;
+    }
+
+    /* === Responsive === */
+    @media (max-width: 360px) {
+      .step-card { padding: 24px 20px; }
+      .step-title { font-size: 20px; }
+      .profile-row { flex-wrap: wrap; gap: 8px; }
+      .profile-dir { min-width: auto; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wizard">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+      <div class="step-dot active" data-step="1"></div>
+      <div class="step-line" data-line="1"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-line" data-line="2"></div>
+      <div class="step-dot" data-step="3"></div>
+      <div class="step-line" data-line="3"></div>
+      <div class="step-dot" data-step="4"></div>
+      <div class="step-line" data-line="4"></div>
+      <div class="step-dot" data-step="5"></div>
+    </div>
+
+    <!-- Step 1: Browser Type -->
+    <div class="step active" data-step="1">
+      <div class="step-card">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="4"/>
+            <line x1="21.17" y1="8" x2="12" y2="8"/>
+            <line x1="3.95" y1="6.06" x2="8.54" y2="14"/>
+            <line x1="10.88" y1="21.94" x2="15.46" y2="14"/>
+          </svg>
+        </div>
+        <h2 class="step-title">Your Browser</h2>
+        <p class="step-desc">We detected your browser automatically. Confirm it's correct.</p>
+
+        <div class="browser-detect">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          Detected: <strong id="detected-browser">Chrome</strong>
+        </div>
+
+        <label class="form-label">Confirm browser type</label>
+        <select id="browser-select" class="select" aria-label="Browser type">
+          <option value="chrome">Chrome</option>
+          <option value="dia">Dia</option>
+        </select>
+
+        <div class="btn-row">
+          <div></div>
+          <button class="btn-primary" id="btn-step1-next">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Profile Mapping -->
+    <div class="step" data-step="2">
+      <div class="step-card">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <h2 class="step-title">Browser Profiles</h2>
+        <p class="step-desc">Assign a label to each browser profile you want to sync.</p>
+
+        <div id="profiles-list"></div>
+
+        <div class="manual-add">
+          <div class="manual-add-label">Add profile directory manually</div>
+          <div class="manual-add-row">
+            <input type="text" id="manual-profile-dir" class="input" placeholder="e.g. Default, Profile 1" aria-label="Profile directory name">
+            <button class="btn-add" id="btn-add-profile">Add</button>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-secondary" id="btn-step2-back">Back</button>
+          <button class="btn-primary" id="btn-step2-next">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Server + Device -->
+    <div class="step" data-step="3">
+      <div class="step-card">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+            <line x1="6" y1="6" x2="6.01" y2="6"/>
+            <line x1="6" y1="18" x2="6.01" y2="18"/>
+          </svg>
+        </div>
+        <h2 class="step-title">Server Connection</h2>
+        <p class="step-desc">Name this device and point it at your sync server.</p>
+
+        <label class="form-label">Device name</label>
+        <input type="text" id="device-name" class="input" placeholder="e.g. my-laptop, office-desktop" aria-label="Device name">
+        <p class="form-note">A unique name for this device. Used to identify it in sync.</p>
+
+        <label class="form-label">Primary server URL</label>
+        <input type="text" id="primary-server" class="input" placeholder="e.g. ws://100.x.y.z:7777" aria-label="Primary server URL">
+        <p class="form-note">WebSocket URL of the always-on sync server.</p>
+
+        <div class="info-callout">
+          If using Tailscale, your server URL will be something like <strong>ws://100.x.y.z:7777</strong> where the IP is your Tailscale device address.
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-secondary" id="btn-step3-back">Back</button>
+          <button class="btn-primary" id="btn-step3-next">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Secondary Server -->
+    <div class="step" data-step="4">
+      <div class="step-card">
+        <div class="step-icon" style="opacity: 0.7;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </div>
+        <h2 class="step-title">Backup Server <span class="optional-badge">Optional</span></h2>
+        <p class="step-desc">A fallback server if the primary is unreachable.</p>
+
+        <label class="form-label">Secondary server URL</label>
+        <input type="text" id="secondary-server" class="input" placeholder="e.g. ws://backup-ip:7778" style="opacity: 0.8;" aria-label="Secondary server URL">
+        <p class="form-note">Leave blank to skip. The extension will retry the primary server if no backup is set.</p>
+
+        <div class="btn-row">
+          <button class="btn-secondary" id="btn-step4-back">Back</button>
+          <button class="btn-primary" id="btn-step4-next">Next</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Security / Auth -->
+    <div class="step" data-step="5">
+      <div class="step-card">
+        <div class="step-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <h2 class="step-title">Security</h2>
+        <p class="step-desc">Choose how to secure the connection to your sync server.</p>
+
+        <div class="auth-cards">
+          <label class="auth-card selected" data-auth="tailscale">
+            <input type="radio" name="auth-type" value="tailscale" checked>
+            <div class="auth-card-header">
+              <div class="auth-card-dot"></div>
+              <span class="auth-card-title">Tailscale</span>
+            </div>
+            <p class="auth-card-desc">Network-level auth via Tailscale ACLs. Recommended.</p>
+          </label>
+
+          <label class="auth-card" data-auth="token">
+            <input type="radio" name="auth-type" value="token">
+            <div class="auth-card-header">
+              <div class="auth-card-dot"></div>
+              <span class="auth-card-title">Shared Token</span>
+            </div>
+            <p class="auth-card-desc">A pre-shared secret token for all devices.</p>
+          </label>
+
+          <label class="auth-card" data-auth="none">
+            <input type="radio" name="auth-type" value="none">
+            <div class="auth-card-header">
+              <div class="auth-card-dot"></div>
+              <span class="auth-card-title">None</span>
+            </div>
+            <p class="auth-card-desc">No authentication. Only for trusted local networks.</p>
+          </label>
+        </div>
+
+        <div id="auth-tailscale" class="auth-detail visible">
+          <p class="form-note" style="margin-bottom: 8px;">Add this ACL rule to your Tailscale admin console to restrict access:</p>
+          <div class="acl-snippet">{
+  <span class="key">"acls"</span>: [
+    {
+      <span class="key">"action"</span>: <span class="string">"accept"</span>,
+      <span class="key">"src"</span>: [<span class="string">"tag:tabsync"</span>],
+      <span class="key">"dst"</span>: [<span class="string">"tag:tabsync:7777"</span>, <span class="string">"tag:tabsync:7778"</span>]
+    }
+  ]
+}</div>
+        </div>
+
+        <div id="auth-token" class="auth-detail">
+          <label class="form-label">Generated auth token</label>
+          <div class="token-display" id="generated-token"></div>
+          <p class="form-note">Use this same token on all devices and on the server (AUTH_TOKEN env var).</p>
+        </div>
+
+        <div id="auth-none" class="auth-detail">
+          <div class="info-callout" style="border-left-color: var(--offline);">
+            No authentication means anyone on your network can connect. Only use this on trusted local networks.
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-secondary" id="btn-step5-back">Back</button>
+          <button class="btn-primary" id="btn-step5-finish">Finish Setup</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Done -->
+    <div class="step" data-step="done">
+      <div class="step-card">
+        <div class="success-screen">
+          <div class="success-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <h1>Setup Complete</h1>
+          <p class="step-desc">Tab Sync is now configured and connecting.</p>
+          <p class="success-note">You can close this tab. Use the extension popup to manage sync.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="setup.js"></script>
+</body>
+</html>
