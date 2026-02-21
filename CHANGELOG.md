@@ -10,6 +10,18 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.9] — 2026-02-21
+
+### Fixed
+
+- **Echo cascade making synced tabs appear invisible** — when `handleTabOpened` created a tab on the receiving device, `onCreated` fired and emitted `tab_opened` back to the originating device. The echo itself was harmless (duplicate-suppressed at origin). But it coupled the synced tab's lifetime to the echo chain: user opens tab on A → syncs to B (background, 1.2s delay) → user closes test tab on A before noticing B's tab → close event arrives at B → B closes its synced tab → B echoes `tab_closed` → apparent result: tab appeared for ~1s then vanished, looks like sync broke. Fix: `pendingSyncUrls` map (keyed by `normalizeUrl(url)`, value = count for concurrent same-URL syncs) tracks URLs currently being opened by `handleTabOpened`. `onCreated` and `onUpdated` check the map before emitting `tab_opened` — sync-created tabs are silently consumed from the map and no echo is sent. Tab close still propagates normally (user-initiated closes on either device should still close the other).
+
+- **Zero feedback for received tabs** — synced tabs open as background tabs (`active: false`) with no indicator they arrived. With the echo suppression above, the receiving device no longer echoes back to the originating device, so the originating user gets no confirmation either. Added a 3-second amber badge flash (`+1`) when `handleTabOpened` successfully creates a tab. The badge uses the existing Relay amber color (`#F0B433`).
+
+- **Silent failure modes were invisible** — added `console.log` at every decision point in `executeEvent`, `handleTabOpened`, `onCreated`, `onUpdated`, and `onRemoved`. Open the background service worker DevTools (`dia://extensions` → Relay → Service Worker "Inspect") to see exactly which path each event takes.
+
+---
+
 ## [1.1.8] — 2026-02-22
 
 ### Fixed
