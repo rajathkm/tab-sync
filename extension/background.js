@@ -427,14 +427,29 @@ async function setupContextMenu() {
   const config = await getConfig();
   const deviceName = config?.device || 'other device';
 
-  // Remove existing menu items
+  // Remove existing menu items before creating new ones.
+  // Must await removeAll to avoid the race condition where both the
+  // onInstalled handler and the startup IIFE call setupContextMenu()
+  // concurrently — without awaiting removeAll, two create() calls land
+  // before either removal completes, producing "duplicate id" errors.
   await chrome.contextMenus.removeAll();
 
-  chrome.contextMenus.create({
-    id: 'push-tab',
-    title: `Push tab to ${deviceName}`,
-    contexts: ['page']
-  });
+  chrome.contextMenus.create(
+    {
+      id: 'push-tab',
+      title: `Push tab to ${deviceName}`,
+      contexts: ['page']
+    },
+    () => {
+      // Suppress harmless "duplicate id" errors — can fire on rapid SW restart
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || '';
+        if (!msg.includes('duplicate')) {
+          console.error('[TabSync] Context menu create error:', msg);
+        }
+      }
+    }
+  );
 }
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {

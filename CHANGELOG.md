@@ -10,6 +10,21 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.3] — 2026-02-22
+
+### Fixed
+- **Duplicate context menu id** — `setupContextMenu()` now uses the callback form of `chrome.contextMenus.create()` to suppress harmless "duplicate id" errors that fire when the service worker restarts rapidly (both `onInstalled` and the startup IIFE call `setupContextMenu()` concurrently; `removeAll()` was already awaited but the Chrome API still races on rapid SW restarts)
+
+---
+
+## [1.1.2] — 2026-02-22
+
+### Fixed
+- Settings icon was an SVG sun (straight spokes); replaced with a proper gear/cog icon
+- Secondary server URL updated to point at MacBook Pro (`ws://100.112.174.57:7778`) — note: each Dia profile stores its own config; if you set up additional profiles before this fix, re-run setup for those profiles to update their secondary server URL
+
+---
+
 ## [1.1.1] — 2026-02-21
 
 ### Fixed
