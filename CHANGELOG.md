@@ -10,6 +10,22 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.11] — 2026-02-21
+
+### Fixed (root cause of Cmd+T sync failure)
+
+- **`newTabIds` reset on service worker restart silently killed address-bar tab sync** — this is the core reason Cmd+T → navigate never synced while Cmd+Shift+T (restore) and tab close both worked.
+
+  MV3 service workers die after ~30 seconds of inactivity and restart on the next event. `newTabIds` was an in-memory `Set` — gone on every restart. When the user pressed Cmd+T (adds tab to `newTabIds`) and then typed a URL (wakes SW for `onUpdated`), `newTabIds` was empty on the restarted SW and the navigation was silently dropped.
+
+  Cmd+Shift+T worked because `onCreated` fires with the URL already set (no `newTabIds` needed). Tab close worked because `tabUrlCache` is repopulated by `initTabCache()` on every restart.
+
+  **Fix**: removed `newTabIds` entirely. Replaced with a `prevUrl` approach: `onCreated` always writes the tab's starting URL ('' for blank/newtab) to `tabUrlCache`. `onUpdated` reads the previous URL and emits `tab_opened` only when the transition is internal→real (blank or chrome://newtab → actual website). `tabUrlCache` survives SW restarts because `initTabCache()` re-seeds it from `chrome.tabs.query()` on every SW startup — so existing tabs are correctly classified even after a sleep cycle.
+
+- **`isInternalUrl()` helper** — extracted repeated URL-scheme check into a shared function. Added `dia://` and `dia-extension://` schemes (for Dia browser compatibility) in all relevant checks including `onRemoved`.
+
+---
+
 ## [1.1.10] — 2026-02-21
 
 ### Fixed

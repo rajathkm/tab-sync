@@ -350,40 +350,65 @@ async function replayQueue() {
   await saveQueue([]);
 }
 
+// --- URL classification helper ---
+// Returns true for browser-internal URLs that should never be synced.
+// Includes Dia-specific schemes (dia://, dia-extension://) in addition to
+// the standard Chrome set.
+function isInternalUrl(url) {
+  return !url ||
+    url.startsWith('chrome://') ||
+    url.startsWith('chrome-extension://') ||
+    url.startsWith('about:') ||
+    url.startsWith('dia://') ||
+    url.startsWith('dia-extension://');
+}
+
+// --- Tab URL cache ---
+// Maps tabId → last-known URL. Populated by initTabCache() on SW start and
+// kept current by the three listeners below.
+//
+// WHY NOT newTabIds?
+// Previous versions used a newTabIds Set to track "tabs born without a URL"
+// so onUpdated could emit tab_opened when the user navigated to a real URL.
+// Fatal flaw: MV3 service workers die after ~30 s of inactivity, resetting all
+// in-memory state.  When the SW restarts for an onUpdated event, newTabIds is
+// empty — the tabId is gone — and the event is silently dropped.
+//
+// New approach: use tabUrlCache as the source of truth for the previous URL.
+// onCreated always writes the tab's URL (or '' for blank) to the cache.
+// onUpdated reads the previous URL and emits tab_opened only when the
+// transition is internal→real (blank/newtab → actual website).
+// tabUrlCache is re-seeded by initTabCache() after every SW restart, so
+// existing tabs survive the lifecycle gap.
+const tabUrlCache = new Map();
+
 // --- Tab event listeners ---
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   const url = tabUrlCache.get(tabId);
   tabUrlCache.delete(tabId);
-  newTabIds.delete(tabId); // clean up either way
 
-  if (!url) return;
-  if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:')) return;
+  if (!url || isInternalUrl(url)) return;
 
   console.log('[Relay] onRemoved: sending tab_closed:', url);
   await sendEvent({ type: 'tab_closed', url });
 });
 
 chrome.tabs.onCreated.addListener(async (tab) => {
-  // tab.url can be undefined, null, or empty string depending on Chrome version and tab type.
   // Coerce to a safe string immediately to avoid null-reference errors.
   const url = (typeof tab.url === 'string' ? tab.url : '').trim();
-  const isInternal = !url ||
-    url.startsWith('chrome://') ||
-    url.startsWith('chrome-extension://') ||
-    url.startsWith('about:') ||
-    url.startsWith('dia://') ||
-    url.startsWith('dia-extension://');
 
-  if (isInternal) {
-    // No real URL yet — mark as "new" so onUpdated emits tab_opened when URL arrives
-    newTabIds.add(tab.id);
+  // Always record the tab's starting URL ('' for blank/newtab).
+  // This lets onUpdated detect the internal→real transition even after a SW restart,
+  // because the SW is still alive when onCreated fires for a brand-new tab.
+  tabUrlCache.set(tab.id, url);
+
+  if (isInternalUrl(url)) {
+    // No real URL yet — onUpdated will emit tab_opened when the user navigates.
     return;
   }
 
-  // Tab was created with a real URL already (e.g. cmd+click, JS window.open) — emit now.
-  // Don't add to newTabIds; onUpdated will also fire but won't find tabId in the set.
-  tabUrlCache.set(tab.id, url);
-
+  // Tab opened with a real URL already (Cmd+Shift+T restore, cmd+click link,
+  // JS window.open, or handleTabOpened creating a synced tab).
   const config = await getConfig();
   const profileDir = config?.activeProfileDir;
   const profileLabel = config?.profiles?.[profileDir];
@@ -397,50 +422,45 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (!changeInfo.url) return;
 
   const url = changeInfo.url;
-  const isInternal = url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('about:');
-
+  const prevUrl = tabUrlCache.get(tabId);
+  // Always update cache first, before any early returns.
   tabUrlCache.set(tabId, url);
 
-  if (isInternal) {
-    newTabIds.delete(tabId);
-    return;
-  }
+  if (isInternalUrl(url)) return; // navigated to an internal page — nothing to sync
 
-  // Only emit tab_opened for tabs that were born without a real URL
-  // (covers address-bar navigation into a blank tab, or tabs that started as chrome://newtab)
-  if (newTabIds.has(tabId)) {
-    newTabIds.delete(tabId);
+  // Emit tab_opened only for the internal→real transition.
+  //
+  // prevUrl meanings:
+  //   undefined  — existing tab whose URL we didn't know (SW restarted AFTER
+  //                initTabCache but BEFORE this tab fired onCreated, very rare).
+  //                Treat conservatively: skip, to avoid spamming tab_opened for
+  //                every in-page navigation on tabs we can't classify.
+  //   '' or      — tab was blank or at a browser-internal page (new tab, extension
+  //   internal     page, etc.).  This IS a new-tab navigation → emit.
+  //   real URL   — tab was already showing a real page: this is an in-tab link
+  //                click or redirect → do NOT emit (we only sync tab opens, not
+  //                every navigation within a tab).
+  if (prevUrl === undefined) return;
+  if (!isInternalUrl(prevUrl)) return; // in-tab navigation from a real URL
 
-    const config = await getConfig();
-    const profileDir = config?.activeProfileDir;
-    const profileLabel = config?.profiles?.[profileDir];
-    if (profileLabel && await isOpenSyncEnabled(profileLabel)) {
-      console.log('[Relay] onUpdated: sending tab_opened:', url);
-      await sendEvent({ type: 'tab_opened', url });
-    }
+  // prevUrl was internal/blank → user navigated a new tab to a real URL
+  const config = await getConfig();
+  const profileDir = config?.activeProfileDir;
+  const profileLabel = config?.profiles?.[profileDir];
+  if (profileLabel && await isOpenSyncEnabled(profileLabel)) {
+    console.log('[Relay] onUpdated: new-tab navigation, sending tab_opened:', url);
+    await sendEvent({ type: 'tab_opened', url });
   }
 });
 
-// Tab URL cache — needed because onRemoved doesn't provide the URL
-const tabUrlCache = new Map();
-// newTabIds — tracks tabs created but not yet assigned a real URL.
-// Needed because cmd+click (and programmatic tab open) fires onCreated with
-// the URL already set, so tabUrlCache already has the URL when onUpdated fires,
-// making oldUrl truthy and causing the open event to be silently dropped.
-const newTabIds = new Set();
-
-// (pendingSyncUrls removed — echo suppression via URL map caused live sync events to
-// be silently dropped when onCreated/onUpdated fired before the map entry could be
-// consumed. Echoes are harmless: the originating device suppresses them via duplicate
-// URL check in handleTabOpened.)
-
-// Initialize cache with all current tabs
+// Initialize cache with all currently open tabs.
+// Called on every SW startup so tabUrlCache reflects reality even after a restart.
+// Blank / internal-URL tabs get '' so onUpdated can recognise the internal→real
+// transition when the user navigates one of them.
 async function initTabCache() {
   const tabs = await chrome.tabs.query({});
   for (const tab of tabs) {
-    if (tab.url) {
-      tabUrlCache.set(tab.id, tab.url);
-    }
+    tabUrlCache.set(tab.id, tab.url || '');
   }
 }
 
