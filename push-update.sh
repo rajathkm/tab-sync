@@ -1,6 +1,8 @@
 #!/bin/bash
 # Usage: ./push-update.sh "fix: description" [patch|minor|major]
-# Bumps version, commits, tags, pushes to GitHub, rsyncs to MacBook Pro
+# Bumps version, commits, tags, pushes to GitHub.
+# Optional: set RELAY_SYNC_TARGET=user@host:path to also rsync to a second device.
+#   e.g. RELAY_SYNC_TARGET="me@192.168.1.10:~/Projects/relay" ./push-update.sh "fix: thing"
 
 set -e
 cd "$(dirname "$0")"
@@ -39,9 +41,9 @@ git tag "v${NEW_VERSION}"
 git push origin main --tags
 echo "✅ Pushed to GitHub (v${NEW_VERSION})"
 
-# Sync to MacBook Pro
-rsync -a --exclude='node_modules' --exclude='.git' \
-  ~/Projects/tab-sync/ rajath@100.112.174.57:~/Downloads/Projects/tab-sync/
-echo "✅ Synced to MacBook Pro"
-echo ""
-echo "👉 On MacBook Pro: dia://extensions → Tab Sync → ⟳ reload"
+# Optional: sync to a second device
+if [ -n "$RELAY_SYNC_TARGET" ]; then
+  rsync -a --exclude='node_modules' --exclude='.git' . "$RELAY_SYNC_TARGET"
+  echo "✅ Synced to $RELAY_SYNC_TARGET"
+  echo "👉 On that device: open extensions → Relay → ⟳ reload"
+fi

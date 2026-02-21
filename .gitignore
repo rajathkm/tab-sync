@@ -4,3 +4,7 @@ node_modules/
 *.pem
 *.key
 .env
+
+# Internal design/task docs — not for public consumption
+PRD.md
+TASK.md

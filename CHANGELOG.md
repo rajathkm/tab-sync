@@ -10,6 +10,21 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.13] — 2026-02-21
+
+### Fixed
+- **Dia browser detected as "chrome"** — `detectBrowser()` previously used the User-Agent string to detect Dia, but Dia (like most Chromium forks) omits its own name from the UA for web-compatibility reasons. Fixed in both `background.js` and `setup.js` to use `chrome.runtime.getURL('')` instead: if the URL starts with `dia-extension://` it's Dia; `chrome-extension://` means Chrome. UA check kept as belt-and-braces fallback.
+
+### Added
+- **`install.sh`** — one-command macOS server installer. Checks Node.js version, clones/updates the repo, runs `npm install`, offers to generate an auth token, installs a LaunchAgent for auto-start, verifies the health endpoint, and prints the exact server URL(s) to paste into the extension wizard on every device. Detects both local IP and Tailscale IP if present.
+- **`README.md`** — public-facing documentation covering: what Relay does, how the server+extension architecture works, quick install steps, platform support table, sync feature matrix, networking options (same-LAN / Tailscale / VPS), and a troubleshooting table.
+
+### Changed
+- **`push-update.sh`** — removed hardcoded secondary-device SSH target. Rsync to a second machine is now opt-in via `RELAY_SYNC_TARGET=user@host:path` env var.
+- **`PRD.md` + `TASK.md`** — moved to `.gitignore` (internal design docs, not for public repo).
+
+---
+
 ## [1.1.12] — 2026-02-21
 
 ### Added

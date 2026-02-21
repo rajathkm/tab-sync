@@ -4,9 +4,13 @@ let currentStep = 1;
 const profiles = {}; // dir -> label
 
 // --- Browser detection ---
+// Detect browser type.
+// Dia uses the dia-extension:// URL scheme — more reliable than UA string
+// because Dia (like most Chromium forks) omits its name from the UA.
 function detectBrowser() {
-  const ua = navigator.userAgent || '';
-  if (/Dia/i.test(ua)) return 'dia';
+  const extUrl = chrome.runtime.getURL('');
+  if (extUrl.startsWith('dia-extension://')) return 'dia';
+  if (/Dia/i.test(navigator.userAgent || '')) return 'dia'; // belt + braces
   return 'chrome';
 }
 

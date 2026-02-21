@@ -42,10 +42,15 @@ function getProfileDir() {
   return null; // Detected during setup wizard
 }
 
-// Detect browser type from user agent
+// Detect browser type.
+// Dia browser uses the `dia-extension://` URL scheme for extension pages,
+// while Chrome/Chromium use `chrome-extension://`. This is more reliable
+// than a UA string check because Dia (like most Chromium forks) does not
+// include its own name in the User-Agent for web compatibility reasons.
 function detectBrowser() {
-  const ua = navigator.userAgent || '';
-  if (/Dia/i.test(ua)) return 'dia';
+  const extUrl = chrome.runtime.getURL('');
+  if (extUrl.startsWith('dia-extension://')) return 'dia';
+  if (/Dia/i.test(navigator.userAgent || '')) return 'dia'; // belt + braces
   return 'chrome';
 }
 
