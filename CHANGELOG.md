@@ -10,6 +10,17 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.4] — 2026-02-22
+
+### Changed
+- **Renamed to Relay** — extension name, manifest title, popup heading, setup wizard, styles comment all updated
+- **New icons** — amber-gold squircle background, white browser-tab shape with amber relay arrow; all 3 sizes (16/48/128px) regenerated to match Sarvam warm sovereign design language
+
+### Fixed
+- **Auto-open tab detection** — replaced unreliable `!oldUrl` check with a `newTabIds` Set; tabs opened via cmd+click, `window.open`, or JS now correctly emit `tab_opened` events; `onCreated` is the source of truth for new tab detection, `onUpdated` handles tabs that start blank then navigate
+
+---
+
 ## [1.1.3] — 2026-02-22
 
 ### Fixed

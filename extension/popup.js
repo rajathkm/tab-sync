@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
           </svg>
         </div>
-        <p>Tab Sync is not configured yet.<br>Set up cross-device tab syncing in a few steps.</p>
+        <p>Relay is not configured yet.<br>Set up cross-device tab syncing in a few steps.</p>
         <button class="btn-primary" id="run-setup" style="width:100%;">Run Setup</button>
       </div>
     `;

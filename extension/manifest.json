@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Tab Sync",
-  "version": "1.1.3",
-  "description": "Cross-device browser tab sync scoped per browser and profile.",
+  "name": "Relay",
+  "version": "1.1.4",
+  "description": "Relay — cross-device tab sync, scoped per browser and profile.",
   "permissions": [
     "tabs",
     "storage",
@@ -15,7 +15,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Tab Sync"
+    "default_title": "Relay"
   },
   "icons": {
     "16": "icons/icon16.png",
