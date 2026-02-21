@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.clawd.tabsync.secondary</string>
+    <string>com.relay.tabsync.secondary</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/node</string>

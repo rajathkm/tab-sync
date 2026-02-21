@@ -39,15 +39,15 @@ Use the same token in the extension setup wizard.
 
 ### Primary Server (always-on machine)
 
-1. Edit `infra/com.clawd.tabsync.primary.plist`:
+1. Edit `infra/com.relay.tabsync.primary.plist`:
    - Replace `YOURUSERNAME` with your macOS username
    - Update the Node.js path if needed (`which node` to find it)
 
 2. Copy and load:
 
 ```bash
-cp infra/com.clawd.tabsync.primary.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.clawd.tabsync.primary.plist
+cp infra/com.relay.tabsync.primary.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.relay.tabsync.primary.plist
 ```
 
 3. Verify:
@@ -58,15 +58,15 @@ curl http://localhost:7777/health
 
 ### Secondary Server (client machine — optional)
 
-1. Edit `infra/com.clawd.tabsync.secondary.plist`:
+1. Edit `infra/com.relay.tabsync.secondary.plist`:
    - Replace `YOURUSERNAME` with your macOS username
    - Update the Node.js path if needed
 
 2. Copy and load:
 
 ```bash
-cp infra/com.clawd.tabsync.secondary.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.clawd.tabsync.secondary.plist
+cp infra/com.relay.tabsync.secondary.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.relay.tabsync.secondary.plist
 ```
 
 ## 3. Configure Tailscale ACL (Recommended)
@@ -129,12 +129,12 @@ Repeat for each browser profile on each device.
 
 ```bash
 # Stop LaunchAgents
-launchctl unload ~/Library/LaunchAgents/com.clawd.tabsync.primary.plist
-launchctl unload ~/Library/LaunchAgents/com.clawd.tabsync.secondary.plist
+launchctl unload ~/Library/LaunchAgents/com.relay.tabsync.primary.plist
+launchctl unload ~/Library/LaunchAgents/com.relay.tabsync.secondary.plist
 
 # Remove plists
-rm ~/Library/LaunchAgents/com.clawd.tabsync.primary.plist
-rm ~/Library/LaunchAgents/com.clawd.tabsync.secondary.plist
+rm ~/Library/LaunchAgents/com.relay.tabsync.primary.plist
+rm ~/Library/LaunchAgents/com.relay.tabsync.secondary.plist
 
 # Remove extension from chrome://extensions
 ```

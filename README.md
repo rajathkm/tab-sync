@@ -189,4 +189,4 @@ Optionally set `RELAY_SYNC_TARGET=user@host:path` to also rsync to a second mach
 
 ## License
 
-MIT
+[MIT](./LICENSE)

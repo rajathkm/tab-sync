@@ -145,7 +145,7 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ### Fixed
 - Settings icon was an SVG sun (straight spokes); replaced with a proper gear/cog icon
-- Secondary server URL updated to point at MacBook Pro (`ws://100.112.174.57:7778`) — note: each Dia profile stores its own config; if you set up additional profiles before this fix, re-run setup for those profiles to update their secondary server URL
+- Secondary server URL config was not persisting correctly across profiles — note: each Dia profile stores its own config; if you set up additional profiles before this fix, re-run setup for those profiles to update their secondary server URL
 
 ---
 
