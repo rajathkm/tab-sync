@@ -15,10 +15,12 @@ const MAX_BACKOFF = 60000;
 const QUEUE_MAX = 50;
 const EVENT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-// Sequence tracking for received events
-const receivedSeqs = new Map(); // channel -> lastProcessedSeq
-const receiveBuffer = new Map(); // channel -> Map<seq, event>
-const gapTimers = new Map(); // channel -> timer
+// Sequence tracking for deduplication only.
+// We no longer buffer out-of-order events: with a stable TCP WebSocket,
+// reordering is essentially impossible. The old "buffer + gap timer" approach
+// caused a 2-second delay on every event after a SW restart (because the
+// server's monotonic seq counter was >> 1 while receivedSeqs reset to 0).
+const receivedSeqs = new Map(); // channel -> highest seq processed
 
 // --- Profile detection ---
 // Chrome/Dia expose the profile path in chrome.runtime
@@ -189,72 +191,17 @@ function handleIncomingEvent(event) {
 function processWithSequencing(event) {
   const channel = event.channel || wsChannel;
   const lastSeq = receivedSeqs.get(channel) || 0;
-  const expectedSeq = lastSeq + 1;
 
-  if (event.seq === expectedSeq) {
-    // In order — process immediately
-    executeEvent(event);
-    receivedSeqs.set(channel, event.seq);
-    // Process any buffered events that are now in order
-    drainBuffer(channel);
-  } else if (event.seq > expectedSeq) {
-    // Out of order — buffer it
-    if (!receiveBuffer.has(channel)) receiveBuffer.set(channel, new Map());
-    receiveBuffer.get(channel).set(event.seq, event);
+  // Deduplication only: skip events we've already processed.
+  // Process everything else immediately — no buffering, no 2-second gap timers.
+  // Out-of-order delivery over TCP WebSocket is practically impossible;
+  // the old buffer approach caused a 2s delay after every SW restart because
+  // the server's monotonic counter (e.g. 112) was > expected (1), sending
+  // every first post-reconnect event into the gap timer path.
+  if (event.seq <= lastSeq) return; // Duplicate — already processed
 
-    // Start gap timer if not already running
-    if (!gapTimers.has(channel)) {
-      const timer = setTimeout(() => {
-        // Gap tolerance: process what we have after 2 seconds
-        gapTimers.delete(channel);
-        drainBufferForced(channel);
-      }, 2000);
-      gapTimers.set(channel, timer);
-    }
-  }
-  // If event.seq <= lastSeq, it's a duplicate — ignore
-}
-
-function drainBuffer(channel) {
-  const buffer = receiveBuffer.get(channel);
-  if (!buffer) return;
-
-  let lastSeq = receivedSeqs.get(channel) || 0;
-  let next = lastSeq + 1;
-
-  while (buffer.has(next)) {
-    const event = buffer.get(next);
-    buffer.delete(next);
-    executeEvent(event);
-    receivedSeqs.set(channel, next);
-    next++;
-  }
-
-  if (buffer.size === 0) {
-    receiveBuffer.delete(channel);
-    // Clear gap timer since we caught up
-    if (gapTimers.has(channel)) {
-      clearTimeout(gapTimers.get(channel));
-      gapTimers.delete(channel);
-    }
-  }
-}
-
-function drainBufferForced(channel) {
-  const buffer = receiveBuffer.get(channel);
-  if (!buffer) return;
-
-  // Sort by seq and process everything, updating lastSeq to highest
-  const sorted = [...buffer.entries()].sort((a, b) => a[0] - b[0]);
-  let maxSeq = receivedSeqs.get(channel) || 0;
-
-  for (const [seq, event] of sorted) {
-    executeEvent(event);
-    if (seq > maxSeq) maxSeq = seq;
-  }
-
-  receivedSeqs.set(channel, maxSeq);
-  receiveBuffer.delete(channel);
+  executeEvent(event);
+  receivedSeqs.set(channel, event.seq);
 }
 
 async function executeEvent(event) {

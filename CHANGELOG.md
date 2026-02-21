@@ -10,6 +10,16 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.7] — 2026-02-22
+
+### Fixed
+
+- **Auto-open toggle was a dummy button** — the CSS hides the `<input>` checkbox (`width:0; height:0`) and overlays a `.slider` span. With `<div class="toggle">`, clicking the slider had no `<label>` connection to the hidden checkbox, so no `change` event fired, the message to the background was never sent, and the state never changed. "Sync enabled" appeared to work only because setup enables it programmatically — it was never actually clicked. Fix: changed both toggle wrappers in `popup.js` from `<div class="toggle">` to `<label class="toggle">`, so clicking anywhere in the label area (including the slider) toggles the checkbox.
+
+- **All tab events buffered for 2 seconds after reconnect** — the sequence ordering logic expected `seq=1` as the first event but the server's monotonic counter survived the reconnect storm and was at 100+. Every post-reconnect first event went into the gap-timer buffer and waited 2s. Simplified sequencing to deduplication only: events are processed immediately; only `event.seq <= lastSeq` (already-seen events) are skipped. Out-of-order delivery over a TCP WebSocket is practically impossible.
+
+---
+
 ## [1.1.6] — 2026-02-22
 
 ### Fixed (critical — reconnect storm)

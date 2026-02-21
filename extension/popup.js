@@ -73,17 +73,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       </div>
       <div class="toggle-row">
         <label>Sync enabled</label>
-        <div class="toggle">
+        <label class="toggle">
           <input type="checkbox" data-toggle="sync" data-profile="${label}" ${enabled ? 'checked' : ''} aria-label="Toggle sync for ${label}">
           <span class="slider"></span>
-        </div>
+        </label>
       </div>
       <div class="toggle-row">
         <label>Auto-open tabs</label>
-        <div class="toggle">
+        <label class="toggle">
           <input type="checkbox" data-toggle="open-sync" data-profile="${label}" ${openSyncOn ? 'checked' : ''} aria-label="Toggle auto-open for ${label}">
           <span class="slider"></span>
-        </div>
+        </label>
       </div>
       <button class="push-btn" data-push="${label}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
