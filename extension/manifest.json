@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Relay",
-  "version": "1.1.13",
-  "description": "Relay — cross-device tab sync, scoped per browser and profile.",
+  "version": "1.1.14",
+  "description": "Relay \u2014 cross-device tab sync, scoped per browser and profile.",
   "permissions": [
     "tabs",
     "storage",

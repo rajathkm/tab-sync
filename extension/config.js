@@ -73,11 +73,29 @@ async function isOpenSyncEnabled(profileLabel) {
   return toggles[profileLabel] !== false;
 }
 
-// Normalize URLs for comparison — strip fragment
+// Normalize URLs for comparison — strip fragment and query params for known dynamic sites
 function normalizeUrl(url) {
   try {
     const u = new URL(url);
     u.hash = '';
+
+    // Google Docs: /edit, /view, /preview all point to same doc
+    // Strip query params and normalize path
+    if (u.hostname.includes('docs.google.com')) {
+      u.search = '';
+      // Normalize /edit, /view, /preview to /view
+      u.pathname = u.pathname.replace(/\/(edit|view|preview)$/, '/view');
+      return u.toString();
+    }
+
+    // Vercel: strip UTM and other tracking params
+    if (u.hostname.includes('vercel.com')) {
+      u.search = ''; // Strip all query params on vercel
+      return u.toString();
+    }
+
+    // Other sites: strip query params too (most sites use params for tracking)
+    u.search = '';
     return u.toString();
   } catch {
     return url;
