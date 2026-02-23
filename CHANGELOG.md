@@ -10,6 +10,12 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.17] — 2026-02-23
+
+### Fixed
+- **Backup status stuck on both profiles** — `primaryFailed` global flag was never reset after failover, so both Chrome profiles (Stader + Emergent) remained on backup indefinitely even after the primary server recovered. Added a 5-minute primary recovery timer: after failing over to backup, the extension automatically retries the primary server and clears the "Using Backup" status if it succeeds. Cancels the recovery timer on successful primary connection.
+- **Google Docs scrolls to top while typing** — navigation events were being synced even when only the URL hash fragment changed (e.g. Google Docs updates `#heading=h.xxx` as you type/scroll). Added `isHashOnlyChange()` helper that compares origin + path + search — if only the hash differs, the event is silently dropped on both the outgoing side (prevents sending) and the receiving side (prevents `chrome.tabs.update` call that caused the scroll).
+
 ## [1.1.13] — 2026-02-21
 
 ### Fixed

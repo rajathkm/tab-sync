@@ -10,7 +10,9 @@ let retryCount = 0;
 let retryTimer = null;
 let primaryFailed = false;
 let primaryRetryCount = 0;
+let primaryRecoveryTimer = null;
 const MAX_PRIMARY_RETRIES = 3;
+const PRIMARY_RECOVERY_MS = 5 * 60 * 1000; // Try primary again after 5 min on backup
 const MAX_BACKOFF = 60000;
 const QUEUE_MAX = 50;
 const EVENT_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -121,6 +123,16 @@ async function connect() {
         thisWs.send(JSON.stringify({ type: 'auth', token: config.authToken }));
       }
 
+      // If we're on primary and connected successfully, cancel any pending recovery timer
+      if (!primaryFailed && primaryRecoveryTimer) {
+        clearTimeout(primaryRecoveryTimer);
+        primaryRecoveryTimer = null;
+      }
+      // If primaryFailed is false now (recovery succeeded), clear it explicitly
+      if (!primaryFailed) {
+        primaryRetryCount = 0;
+      }
+
       updateConnectionStatus(profileLabel, primaryFailed ? 'backup' : 'connected');
 
       // Replay offline queue
@@ -173,6 +185,15 @@ function scheduleReconnect() {
     primaryRetryCount = 0;
     retryCount = 0;
     console.log('[TabSync] Primary server failed after 3 retries, switching to secondary');
+    // Schedule a primary recovery attempt — try primary again after 5 minutes
+    if (primaryRecoveryTimer) clearTimeout(primaryRecoveryTimer);
+    primaryRecoveryTimer = setTimeout(() => {
+      console.log('[TabSync] Primary recovery: retrying primary server');
+      primaryFailed = false;
+      primaryRetryCount = 0;
+      retryCount = 0;
+      if (ws) ws.close(); // force reconnect via the existing onclose handler
+    }, PRIMARY_RECOVERY_MS);
   }
 
   const delay = Math.min(1000 * Math.pow(2, retryCount - 1), MAX_BACKOFF);
@@ -333,6 +354,13 @@ async function findBlankTab() {
 async function handleTabNavigated(event) {
   if (!event.oldUrl || !event.newUrl) return;
 
+  // Skip hash-only changes — these are in-page anchor jumps that should not
+  // cause the other device to reload/scroll the tab.
+  if (isHashOnlyChange(event.oldUrl, event.newUrl)) {
+    console.log('[Relay] handleTabNavigated: skipped hash-only nav:', event.newUrl);
+    return;
+  }
+
   // Respect the same open-sync toggle as handleTabOpened.
   const config = await getConfig();
   const profileDir = config?.activeProfileDir;
@@ -449,6 +477,23 @@ async function replayQueue() {
 
 // --- URL classification helper ---
 // Returns true for browser-internal URLs that should never be synced.
+// Returns true if the two URLs differ only in their hash fragment.
+// Used to skip syncing in-page anchor jumps (e.g. Google Docs heading anchors,
+// GitHub section links) that would scroll/reload the other device's tab.
+function isHashOnlyChange(urlA, urlB) {
+  try {
+    const a = new URL(urlA);
+    const b = new URL(urlB);
+    // Same origin + path + search, only hash differs
+    return a.origin === b.origin &&
+      a.pathname === b.pathname &&
+      a.search === b.search &&
+      a.hash !== b.hash;
+  } catch {
+    return false;
+  }
+}
+
 // Includes Dia-specific schemes (dia://, dia-extension://) in addition to
 // the standard Chrome set.
 function isInternalUrl(url) {
@@ -561,6 +606,13 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (pendingNavUrls.has(key)) {
       pendingNavUrls.delete(key);
       console.log('[Relay] onUpdated: suppressed echo nav:', url);
+      return;
+    }
+    // Skip hash-only changes — these are in-page anchor jumps (e.g. Google Docs
+    // updating the URL while typing/scrolling). Syncing these causes the other
+    // device to scroll/reload the tab to that anchor position.
+    if (isHashOnlyChange(prevUrl, url)) {
+      console.log('[Relay] onUpdated: skipped hash-only nav:', url);
       return;
     }
     console.log('[Relay] onUpdated: in-tab navigation, sending tab_navigated:', prevUrl, '→', url);
