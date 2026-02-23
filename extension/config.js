@@ -88,6 +88,18 @@ function normalizeUrl(url) {
       return u.toString();
     }
 
+    // Google Drive: strip user index /u/N/ (varies per machine/account),
+    // query params (usp=sharing, resourcekey, etc.), and normalize file actions.
+    // /u/0/ on one device may be /u/1/ on another — treat them as identical.
+    if (u.hostname === 'drive.google.com') {
+      u.search = '';
+      // Strip /u/0/, /u/1/, etc. from path prefix
+      u.pathname = u.pathname.replace(/^\/drive\/u\/\d+\//, '/drive/');
+      // Normalize file actions: /edit, /preview → /view
+      u.pathname = u.pathname.replace(/\/(edit|preview)$/, '/view');
+      return u.toString();
+    }
+
     // Vercel: strip UTM and other tracking params
     if (u.hostname.includes('vercel.com')) {
       u.search = ''; // Strip all query params on vercel

@@ -21,6 +21,13 @@ const EVENT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 // same SW lifecycle (WS message keeps SW awake), so this survives reliably.
 const pendingNavUrls = new Set();
 
+// Echo suppression for tab_opened: tracks normalizedUrl of tabs WE created via
+// handleTabOpened so onCreated doesn't re-emit them back to the sender.
+// Without this, every synced tab_opened causes an echo: handleTabOpened creates
+// a tab → onCreated fires → sends tab_opened back → infinite loop.
+// Same in-memory lifecycle guarantee as pendingNavUrls (WS message keeps SW awake).
+const pendingTabSyncCreates = new Set();
+
 // Sequence tracking for deduplication only.
 // We no longer buffer out-of-order events: with a stable TCP WebSocket,
 // reordering is essentially impossible. The old "buffer + gap timer" approach
@@ -279,12 +286,19 @@ async function handleTabOpened(event) {
   }
 
   try {
+    // Echo suppression: mark this URL before creating the tab so onCreated
+    // doesn't re-emit a tab_opened event back to the originating device.
+    const normalizedForEcho = normalizeUrl(event.url);
+    pendingTabSyncCreates.add(normalizedForEcho);
+    setTimeout(() => pendingTabSyncCreates.delete(normalizedForEcho), 5000); // safety cleanup
+
     await chrome.tabs.create({ url: event.url, active: false });
     console.log('[Relay] opened synced tab:', event.url);
     // Brief badge flash — visible confirmation even though synced tab opens in background
     flashBadge();
   } catch (e) {
     console.error('[Relay] failed to open tab:', e);
+    pendingTabSyncCreates.delete(normalizeUrl(event.url)); // clean up if create failed
   }
 }
 
@@ -464,6 +478,17 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 
   // Tab opened with a real URL already (Cmd+Shift+T restore, cmd+click link,
   // JS window.open, or handleTabOpened creating a synced tab).
+
+  // Echo suppression: if this tab was created by handleTabOpened (i.e. we received
+  // a tab_opened from the other device and created this tab ourselves), skip sending
+  // the event back — that would cause an infinite open loop.
+  const normalizedUrl = normalizeUrl(url);
+  if (pendingTabSyncCreates.has(normalizedUrl)) {
+    pendingTabSyncCreates.delete(normalizedUrl);
+    console.log('[Relay] onCreated: suppressed echo for TabSync-created tab:', url);
+    return;
+  }
+
   const config = await getConfig();
   const profileDir = config?.activeProfileDir;
   const profileLabel = config?.profiles?.[profileDir];
