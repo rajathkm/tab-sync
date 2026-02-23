@@ -292,14 +292,42 @@ async function handleTabOpened(event) {
     pendingTabSyncCreates.add(normalizedForEcho);
     setTimeout(() => pendingTabSyncCreates.delete(normalizedForEcho), 5000); // safety cleanup
 
-    await chrome.tabs.create({ url: event.url, active: false });
-    console.log('[Relay] opened synced tab:', event.url);
+    // Prefer navigating an existing blank/newtab tab over creating a new one.
+    // chrome.tabs.create() triggers Dia's "New Tab Created" HUD banner on macOS —
+    // even for background tabs. Reusing a blank tab avoids that entirely.
+    const blankTab = await findBlankTab();
+    if (blankTab) {
+      // Mark this navigation so onUpdated doesn't echo it back.
+      const navKey = `${blankTab.id}:${event.url}`;
+      pendingNavUrls.add(navKey);
+      setTimeout(() => pendingNavUrls.delete(navKey), 5000);
+      await chrome.tabs.update(blankTab.id, { url: event.url });
+      console.log('[Relay] navigated blank tab to synced URL:', event.url);
+    } else {
+      await chrome.tabs.create({ url: event.url, active: false });
+      console.log('[Relay] created synced tab (no blank tab available):', event.url);
+    }
+
     // Brief badge flash — visible confirmation even though synced tab opens in background
     flashBadge();
   } catch (e) {
     console.error('[Relay] failed to open tab:', e);
     pendingTabSyncCreates.delete(normalizeUrl(event.url)); // clean up if create failed
   }
+}
+
+// Find an existing blank/newtab tab to reuse instead of creating a new one.
+// Returns the first blank tab found, or null if none exist.
+async function findBlankTab() {
+  const tabs = await chrome.tabs.query({});
+  return tabs.find(t =>
+    !t.active &&
+    (t.url === 'chrome://newtab/' ||
+     t.url === 'about:blank' ||
+     t.url === 'dia://newtab/' ||
+     t.url === '' ||
+     isInternalUrl(t.url))
+  ) || null;
 }
 
 async function handleTabNavigated(event) {
