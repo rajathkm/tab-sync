@@ -73,6 +73,34 @@ async function isOpenSyncEnabled(profileLabel) {
   return toggles[profileLabel] !== false;
 }
 
+// URLs matching these patterns are excluded from ALL sync events (open, navigate, close).
+// These are real-time / session-specific pages where syncing across devices causes
+// active sessions to be disrupted (e.g. killing a video call tab mid-meeting).
+const SYNC_BLOCKLIST = [
+  // Video calls — session tabs are device-specific; closing/navigating remotely kills the call
+  /meet\.google\.com/,
+  /zoom\.us\/j\//,
+  /teams\.microsoft\.com\/l\/meetup/,
+  /whereby\.com\//,
+  /webex\.com\/meet\//,
+  /around\.co\//,
+  // Live/streaming sessions
+  /youtube\.com\/live/,
+  // Auth/OAuth flows — navigating these mid-flow breaks sign-in
+  /accounts\.google\.com\/o\/oauth/,
+  /github\.com\/login\/oauth/,
+];
+
+// Returns true if the URL should be excluded from all sync operations.
+function isSyncBlocked(url) {
+  if (!url) return false;
+  try {
+    return SYNC_BLOCKLIST.some(pattern => pattern.test(url));
+  } catch {
+    return false;
+  }
+}
+
 // Normalize URLs for comparison — strip fragment and query params for known dynamic sites
 function normalizeUrl(url) {
   try {

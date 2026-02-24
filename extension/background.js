@@ -262,6 +262,11 @@ async function executeEvent(event) {
 }
 
 async function handleTabClosed(event) {
+  // Never close tabs for blocklisted URLs (e.g. active Google Meet calls)
+  if (isSyncBlocked(event.url)) {
+    console.log('[Relay] handleTabClosed: blocked (sync-blocklist):', event.url);
+    return;
+  }
   const normalized = normalizeUrl(event.url);
   const tabs = await chrome.tabs.query({});
   for (const tab of tabs) {
@@ -276,6 +281,12 @@ async function handleTabClosed(event) {
 }
 
 async function handleTabOpened(event) {
+  // Never auto-open tabs for blocklisted URLs (e.g. Google Meet — each device joins independently)
+  if (isSyncBlocked(event.url)) {
+    console.log('[Relay] handleTabOpened: blocked (sync-blocklist):', event.url);
+    return;
+  }
+
   // Check if open-sync is enabled (or if this is a push event which bypasses open-sync toggle)
   if (!event.push) {
     const config = await getConfig();
@@ -353,6 +364,12 @@ async function findBlankTab() {
 
 async function handleTabNavigated(event) {
   if (!event.oldUrl || !event.newUrl) return;
+
+  // Never navigate tabs for blocklisted URLs (e.g. Google Meet mid-call URL changes)
+  if (isSyncBlocked(event.newUrl) || isSyncBlocked(event.oldUrl)) {
+    console.log('[Relay] handleTabNavigated: blocked (sync-blocklist):', event.newUrl);
+    return;
+  }
 
   // Skip hash-only changes — these are in-page anchor jumps that should not
   // cause the other device to reload/scroll the tab.
@@ -530,6 +547,10 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   tabUrlCache.delete(tabId);
 
   if (!url || isInternalUrl(url)) return;
+  if (isSyncBlocked(url)) {
+    console.log('[Relay] onRemoved: blocked (sync-blocklist):', url);
+    return;
+  }
 
   console.log('[Relay] onRemoved: sending tab_closed:', url);
   await sendEvent({ type: 'tab_closed', url });
@@ -580,6 +601,10 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   tabUrlCache.set(tabId, url);
 
   if (isInternalUrl(url)) return; // navigated to an internal page — nothing to sync
+  if (isSyncBlocked(url)) {
+    console.log('[Relay] onUpdated: blocked (sync-blocklist):', url);
+    return;
+  }
 
   // prevUrl meanings:
   //   undefined  — existing tab whose URL we didn't know (SW restarted AFTER

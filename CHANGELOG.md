@@ -10,6 +10,13 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.18] — 2026-02-24
+
+### Fixed
+- **Google Meet (and other video calls) killing tabs mid-call** — the extension was syncing close/navigate/open events for real-time session URLs, causing tabs to be closed or navigated on other devices while a call was active. Added a `SYNC_BLOCKLIST` in `config.js` that excludes a set of real-time/session-specific URL patterns from **all** sync operations (send and receive). Blocked on all four event paths: `onRemoved` (outgoing close), `handleTabClosed` (incoming close), `onUpdated` (outgoing navigate), `handleTabNavigated` (incoming navigate), `onCreated` (outgoing open), and `handleTabOpened` (incoming open).
+
+**Blocklisted patterns (v1.1.18):** Google Meet, Zoom, Microsoft Teams meetings, Whereby, Webex, Around, YouTube Live, Google/GitHub OAuth flows.
+
 ## [1.1.17] — 2026-02-23
 
 ### Fixed
