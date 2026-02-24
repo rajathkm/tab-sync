@@ -10,6 +10,15 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.19] — 2026-02-24
+
+### Fixed
+- **Duplicate tabs when LinkedIn (or similar auth-gated site) is open on one device but not logged in on the other** — the unauthenticated device would open the tab, get redirected to `/login`, fire a `tab_navigated` event, which the logged-in device received and bounced its own LinkedIn tab to the login page, spawning more events and duplicate tabs in a loop.
+  - Added LinkedIn login/authwall/checkpoint URLs to `SYNC_BLOCKLIST` in `config.js`
+  - Added generic auth-redirect query param patterns (`session_redirect`, `returnUrl`, `return_to`, `redirect_uri`) to `SYNC_BLOCKLIST`
+  - `handleTabOpened`: checks if any existing tab for the same origin is already on a blocklisted auth interstitial — if so, suppresses opening another tab (the redirect loop has started, let it settle)
+  - `handleTabNavigated`: drops incoming nav events where the new URL is a blocklisted auth page (prevents bouncing the logged-in device's tab to a login screen)
+
 ## [1.1.18] — 2026-02-24
 
 ### Fixed

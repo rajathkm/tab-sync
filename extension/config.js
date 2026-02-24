@@ -89,6 +89,19 @@ const SYNC_BLOCKLIST = [
   // Auth/OAuth flows — navigating these mid-flow breaks sign-in
   /accounts\.google\.com\/o\/oauth/,
   /github\.com\/login\/oauth/,
+  // LinkedIn auth interstitials — when one device isn't logged in, LinkedIn
+  // redirects to /login or /authwall and fires nav events that loop back.
+  /linkedin\.com\/login/,
+  /linkedin\.com\/authwall/,
+  /linkedin\.com\/uas\/login/,
+  /linkedin\.com\/checkpoint/,
+  // Generic login/auth redirect patterns — session_redirect and returnUrl params
+  // indicate the site is intercepting navigation to force login; syncing these
+  // causes the other (logged-in) device to be bounced to a login page.
+  /[?&]session_redirect=/,
+  /[?&]returnUrl=/,
+  /[?&]return_to=/,
+  /[?&]redirect_uri=/,
 ];
 
 // Returns true if the URL should be excluded from all sync operations.

@@ -287,6 +287,28 @@ async function handleTabOpened(event) {
     return;
   }
 
+  // Suppress tab_opened if the same origin already has a tab open that redirected
+  // to a login/auth page. This handles the LinkedIn case: Device A has
+  // linkedin.com/in/someone open → Device B (not logged in) is told to open it →
+  // LinkedIn redirects B to /login → that fires tab_navigated back to A, bouncing
+  // A to the login page, and the loop produces duplicate tabs.
+  // Solution: if ANY existing tab for the same origin is currently on a blocklisted
+  // URL (login/auth interstitial), don't open another tab for that origin — the
+  // redirect loop has already started and we should let it settle.
+  try {
+    const eventOrigin = new URL(event.url).origin;
+    const allTabs = await chrome.tabs.query({});
+    for (const tab of allTabs) {
+      try {
+        const tabOrigin = new URL(tab.url || '').origin;
+        if (tabOrigin === eventOrigin && isSyncBlocked(tab.url)) {
+          console.log('[Relay] handleTabOpened: suppressed (same-origin auth interstitial open):', event.url, tab.url);
+          return;
+        }
+      } catch {}
+    }
+  } catch {}
+
   // Check if open-sync is enabled (or if this is a push event which bypasses open-sync toggle)
   if (!event.push) {
     const config = await getConfig();
@@ -370,6 +392,19 @@ async function handleTabNavigated(event) {
     console.log('[Relay] handleTabNavigated: blocked (sync-blocklist):', event.newUrl);
     return;
   }
+
+  // Suppress cross-domain redirects that indicate an auth interstitial.
+  // If the navigation changed the origin (e.g. LinkedIn profile → LinkedIn login),
+  // and the new URL is a login/auth page, drop it — navigating the other device's
+  // tab to a login page it may already be past would be disruptive and loop-prone.
+  try {
+    const oldOrigin = new URL(event.oldUrl).origin;
+    const newOrigin = new URL(event.newUrl).origin;
+    if (oldOrigin === newOrigin && isSyncBlocked(event.newUrl)) {
+      console.log('[Relay] handleTabNavigated: suppressed auth redirect:', event.oldUrl, '→', event.newUrl);
+      return;
+    }
+  } catch {}
 
   // Skip hash-only changes — these are in-page anchor jumps that should not
   // cause the other device to reload/scroll the tab.
