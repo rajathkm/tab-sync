@@ -23,6 +23,11 @@ const EVENT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 // same SW lifecycle (WS message keeps SW awake), so this survives reliably.
 const pendingNavUrls = new Set();
 
+// Echo suppression for redirected blank-tab navigations: when handleTabOpened
+// reuses a blank tab, redirects can change URL before onUpdated sees it.
+// Track tabId briefly so redirect variants are still suppressed.
+const pendingTabNavTabIds = new Set();
+
 // Echo suppression for tab_opened: tracks normalizedUrl of tabs WE created via
 // handleTabOpened so onCreated doesn't re-emit them back to the sender.
 // Without this, every synced tab_opened causes an echo: handleTabOpened creates
@@ -355,6 +360,8 @@ async function handleTabOpened(event) {
       const navKey = `${blankTab.id}:${event.url}`;
       pendingNavUrls.add(navKey);
       setTimeout(() => pendingNavUrls.delete(navKey), 5000);
+      pendingTabNavTabIds.add(blankTab.id);
+      setTimeout(() => pendingTabNavTabIds.delete(blankTab.id), 5000);
       await chrome.tabs.update(blankTab.id, { url: event.url });
       console.log('[Relay] navigated blank tab to synced URL:', event.url);
     } else {
@@ -598,7 +605,7 @@ chrome.tabs.onCreated.addListener(async (tab) => {
   // Always record the tab's starting URL ('' for blank/newtab).
   // This lets onUpdated detect the internal→real transition even after a SW restart,
   // because the SW is still alive when onCreated fires for a brand-new tab.
-  tabUrlCache.set(tab.id, url);
+  tabUrlCache.set(tab.id, url ? normalizeUrl(url) : '');
 
   if (isInternalUrl(url)) {
     // No real URL yet — onUpdated will emit tab_opened when the user navigates.
@@ -633,7 +640,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   const url = changeInfo.url;
   const prevUrl = tabUrlCache.get(tabId);
   // Always update cache first, before any early returns.
-  tabUrlCache.set(tabId, url);
+  tabUrlCache.set(tabId, normalizeUrl(url));
 
   if (isInternalUrl(url)) return; // navigated to an internal page — nothing to sync
   if (isSyncBlocked(url)) {
@@ -661,6 +668,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     await sendEvent({ type: 'tab_opened', url });
   } else if (url !== prevUrl) {
     // real→real: in-tab navigation (link click, address bar, redirect, Cmd+L).
+    if (pendingTabNavTabIds.has(tabId)) {
+      pendingTabNavTabIds.delete(tabId);
+      console.log('[Relay] onUpdated: suppressed echo (tabId-based pendingNav):', url);
+      return;
+    }
     // Echo suppression: if WE triggered this update via handleTabNavigated, skip it.
     const key = `${tabId}:${url}`;
     if (pendingNavUrls.has(key)) {
@@ -675,6 +687,12 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       console.log('[Relay] onUpdated: skipped hash-only nav:', url);
       return;
     }
+    // Skip if normalized URLs are identical — param-only change
+    // (e.g. Google Docs ?tab=t.0).
+    if (normalizeUrl(prevUrl) === normalizeUrl(url)) {
+      console.log('[Relay] onUpdated: skipped param-only change (normalized identical):', url);
+      return;
+    }
     console.log('[Relay] onUpdated: in-tab navigation, sending tab_navigated:', prevUrl, '→', url);
     await sendEvent({ type: 'tab_navigated', oldUrl: prevUrl, newUrl: url });
   }
@@ -687,7 +705,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 async function initTabCache() {
   const tabs = await chrome.tabs.query({});
   for (const tab of tabs) {
-    tabUrlCache.set(tab.id, tab.url || '');
+    tabUrlCache.set(tab.id, tab.url ? normalizeUrl(tab.url) : '');
   }
 }
 

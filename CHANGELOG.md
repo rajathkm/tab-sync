@@ -10,6 +10,13 @@ Extension version is in `extension/manifest.json` → `"version"`. Always bump b
 
 ---
 
+## [1.1.20] — 2026-03-14
+
+### Fixed
+- **Google Docs `?tab=` param loops causing duplicate tabs (Fix 1)** — in `onUpdated`, added a normalized-URL identity guard after hash-only checks and before emitting `tab_navigated`. If `normalizeUrl(prevUrl) === normalizeUrl(url)`, the navigation is now skipped as param-only (including Docs internal `tab` state changes).
+- **Redirect mismatch bypassing pendingNav echo suppression (Fix 2)** — added `pendingTabNavTabIds` tabId-based suppression for blank-tab reuse navigations. `handleTabOpened` now marks reused blank tab IDs for 5 seconds, and `onUpdated` consumes this guard before URL-key suppression so HTTP→HTTPS or tracking redirects do not echo back as `tab_opened`.
+- **Non-idempotent duplicate checks from raw cached URLs (Fix 3)** — normalized all `tabUrlCache` writes in `initTabCache`, `onCreated`, and `onUpdated` so comparisons run against canonical URLs instead of raw variants.
+
 ## [1.1.19] — 2026-02-24
 
 ### Fixed
